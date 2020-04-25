@@ -1,0 +1,2 @@
+all:
+	ninja -C build
