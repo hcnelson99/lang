@@ -8,4 +8,5 @@ type token =
 
 type tokenizer
 val create : string -> tokenizer
+val pop : tokenizer -> token
 val peek : tokenizer -> token
