@@ -1,1 +1,1 @@
-val parse : Tokenizer.tokenizer -> Ast.exp
+val parse : Lexer.lexer -> Ast.exp

@@ -1,7 +1,15 @@
 type exp =
-    | Operator of Tokenizer.op * exp * exp
+    | Operator of Lexer.op * exp * exp
     | IntVal of int
 
-let string_of_exp = function
+let rec string_of_exp = function
     | IntVal x -> Int.to_string x
-    | _ -> failwith "string_of_exp"
+    | Operator (op, lhs, rhs) ->
+            let op_str = match op with
+                | Plus -> "+"
+                | Times -> "*"
+                | Divide -> "/"
+                | Minus -> "-" in
+            let lhs_str = string_of_exp lhs in
+            let rhs_str = string_of_exp rhs in
+            "(" ^ lhs_str ^ op_str ^ rhs_str ^ ")"
