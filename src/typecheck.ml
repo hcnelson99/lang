@@ -1,0 +1,1 @@
+let typecheck _ = ()

@@ -5,6 +5,9 @@ type token =
     | Operator of op
     | LParen
     | RParen
+    | Semicolon
+    | Equals
+    | Return
     | Eof
 
 val string_of_token : token -> string

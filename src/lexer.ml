@@ -7,6 +7,9 @@ type token =
     | Operator of op
     | LParen
     | RParen
+    | Semicolon
+    | Equals
+    | Return
     | Eof
 
 let string_of_token = function
@@ -18,6 +21,9 @@ let string_of_token = function
     | Operator Minus -> "-"
     | LParen -> "("
     | RParen -> ")"
+    | Return -> "return"
+    | Semicolon -> ";"
+    | Equals -> "="
     | Eof -> "EOF"
 
 type lexer = 
@@ -65,20 +71,23 @@ let eat_number lexer =
     (match peek_char lexer with
     | None -> ()
     | Some c -> if Char.is_alpha c then failwith "Number cannot end with letter");
-    token
+    IntVal (Int.of_string token)
 
 let is_symbol_start = Char.is_alpha
 let is_symbol_char c = Char.is_alphanum c || c = '_'
-let eat_symbol = eat_token is_symbol_char
-
+let eat_symbol lexer = 
+    let symbol = eat_token is_symbol_char lexer in
+    match symbol with
+    | "return" -> Return
+    | _ -> Symbol symbol
 
 (* does not change the saved tok *)
 let rec compute_tok lexer = 
     match peek_char lexer with
     | None -> Eof
     | Some c -> 
-        if Char.is_digit c then IntVal (Int.of_string (eat_number lexer))
-        else if is_symbol_start c then Symbol (eat_symbol lexer)
+        if Char.is_digit c then eat_number lexer
+        else if is_symbol_start c then eat_symbol lexer
         else 
             (drop_char lexer;
             match c with
@@ -89,15 +98,14 @@ let rec compute_tok lexer =
                 | '/' -> Operator Divide
                 | '(' -> LParen
                 | ')' -> RParen
+                | ';' -> Semicolon
+                | '=' -> Equals
                 | _ -> failwith "lexer error")
 
 let pop lexer =
-    let temp = 
-        match lexer.saved_tok with
-        | Some tok -> lexer.saved_tok <- None; tok
-        | None -> compute_tok lexer in
-    let () = print_endline ("popping " ^  string_of_token temp) in
-    temp
+    match lexer.saved_tok with
+    | Some tok -> lexer.saved_tok <- None; tok
+    | None -> compute_tok lexer
 
 
 let peek lexer =

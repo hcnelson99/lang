@@ -1,4 +1,4 @@
-3 * b + 4 
-
-
-* c
+a = b * c + d;
+return 1;
+b = 3 * 4; a = 2 * 3;
+return b * c + a;

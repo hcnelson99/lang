@@ -1,1 +1,1 @@
-val parse : Lexer.lexer -> Ast.exp
+val parse : Lexer.lexer -> Ast.program
