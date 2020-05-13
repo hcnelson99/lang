@@ -10,6 +10,7 @@ type token =
     | Return
     | Eof
 
+val string_of_op : op -> string
 val string_of_token : token -> string
 
 type lexer

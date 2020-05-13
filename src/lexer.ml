@@ -12,13 +12,16 @@ type token =
     | Return
     | Eof
 
+let string_of_op = function
+    | Plus -> "+"
+    | Times -> "*"
+    | Divide -> "/"
+    | Minus -> "-"
+
 let string_of_token = function
     | IntVal x -> "Int(" ^ Int.to_string x ^ ")" 
     | Symbol s -> "Symbol(" ^ Symbol.str s ^ ")" 
-    | Operator Plus -> "+"
-    | Operator Times -> "*"
-    | Operator Divide -> "/"
-    | Operator Minus -> "-"
+    | Operator op -> string_of_op op
     | LParen -> "("
     | RParen -> ")"
     | Return -> "return"

@@ -40,7 +40,7 @@ and parse_exp lexer =
                         | Left -> prec + 1
                         | Right -> prec in
                     let rhs = parse_exp' rhs_min_prec in
-                    loop (Operator (op, lhs, rhs))
+                    loop (BinOp (op, lhs, rhs))
                 | _ -> failwith ("not an operator: " ^ L.string_of_token tok) in
         loop lhs in
     parse_exp' minimum_precedence

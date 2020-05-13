@@ -1,5 +1,5 @@
 type exp =
-    | Operator of Lexer.op * exp * exp
+    | BinOp of Lexer.op * exp * exp
     | Variable of Symbol.t
     | IntVal of int
 
@@ -12,7 +12,7 @@ type program = stmt list
 let rec string_of_exp = function
     | IntVal x -> Int.to_string x
     | Variable s -> Symbol.str s
-    | Operator (op, lhs, rhs) ->
+    | BinOp (op, lhs, rhs) ->
             let op_str = match op with
                 | Plus -> "+"
                 | Times -> "*"

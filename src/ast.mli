@@ -1,5 +1,5 @@
 type exp =
-    | Operator of Lexer.op * exp * exp
+    | BinOp of Lexer.op * exp * exp
     | Variable of Symbol.t
     | IntVal of int
 
