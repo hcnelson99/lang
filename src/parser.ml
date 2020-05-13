@@ -16,6 +16,7 @@ let op_info = function
 let rec parse_atom lexer = 
     match L.pop lexer with
     | L.IntVal x -> IntVal x
+    | L.Symbol s -> Variable s
     | L.LParen ->
             let atom = parse_exp minimum_precedence lexer in
             let tok = L.pop lexer in

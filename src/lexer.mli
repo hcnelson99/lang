@@ -1,10 +1,12 @@
 type op = Plus | Times | Divide | Minus
 type token =
     | IntVal of int
+    | Symbol of string
     | Operator of op
     | LParen
     | RParen
     | Eof
+
 val string_of_token : token -> string
 
 type lexer

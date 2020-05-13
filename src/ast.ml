@@ -1,9 +1,11 @@
 type exp =
     | Operator of Lexer.op * exp * exp
+    | Variable of string
     | IntVal of int
 
 let rec string_of_exp = function
     | IntVal x -> Int.to_string x
+    | Variable s -> s
     | Operator (op, lhs, rhs) ->
             let op_str = match op with
                 | Plus -> "+"
