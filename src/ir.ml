@@ -38,7 +38,7 @@ let lower program =
     let lookup s = match Hashtbl.find symbols s with
         | None -> failwith "ICE: variable used before definition"
         | Some t -> t in
-    let assign s t = Hashtbl.add symbols ~key:s ~data:t |> ignore in
+    let assign s t = Hashtbl.set symbols ~key:s ~data:t in
     let rec lower_exp (dst : Temp.t) = function
         | A.IntVal i -> [Assign(dst, IntVal i)]
         | A.BinOp (op, e1, e2) -> 
