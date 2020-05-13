@@ -3,7 +3,7 @@ open Core
 type op = Plus | Times | Divide | Minus
 type token =
     | IntVal of int
-    | Symbol of string
+    | Symbol of Symbol.t
     | Operator of op
     | LParen
     | RParen
@@ -14,7 +14,7 @@ type token =
 
 let string_of_token = function
     | IntVal x -> "Int(" ^ Int.to_string x ^ ")" 
-    | Symbol s -> "Symbol(" ^ s ^ ")" 
+    | Symbol s -> "Symbol(" ^ Symbol.str s ^ ")" 
     | Operator Plus -> "+"
     | Operator Times -> "*"
     | Operator Divide -> "/"
@@ -79,7 +79,7 @@ let eat_symbol lexer =
     let symbol = eat_token is_symbol_char lexer in
     match symbol with
     | "return" -> Return
-    | _ -> Symbol symbol
+    | _ -> Symbol (Symbol.create symbol)
 
 (* does not change the saved tok *)
 let rec compute_tok lexer = 

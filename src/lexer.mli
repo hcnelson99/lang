@@ -1,7 +1,7 @@
 type op = Plus | Times | Divide | Minus
 type token =
     | IntVal of int
-    | Symbol of string
+    | Symbol of Symbol.t
     | Operator of op
     | LParen
     | RParen

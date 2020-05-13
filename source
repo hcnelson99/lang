@@ -1,4 +1,8 @@
-a = b * c + d;
-return 1;
-b = 3 * 4; a = 2 * 3;
-return b * c + a;
+a = 1;
+b = 2;
+a = b * a;
+e = 3;
+d = 4;
+f = 7;
+c = d + e * f;
+return c + a + b;
