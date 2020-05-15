@@ -44,18 +44,18 @@ let lower program =
         | A.BinOp (op, e1, e2) -> 
                 let lhs = Temp.create () in
                 let rhs = Temp.create () in
-                lower_exp lhs e1 @
-                lower_exp rhs e2 @
+                lower_exp lhs (Mark.obj e1) @
+                lower_exp rhs (Mark.obj e2) @
                 [BinOp (dst, op, Temp lhs, Temp rhs) ]
         | A.Variable s -> [Assign (dst, Temp (lookup s))] in
-    let lower_stmt = function
+    let lower_stmt stmt = match Mark.obj stmt with
         | A.Return e ->
                 let t = Temp.create () in
-                lower_exp t e @
+                lower_exp t (Mark.obj e) @
                 [ Return (Temp t) ]
         | A.Assign (lhs, e) ->
                 let t = Temp.create () in
-                let stmts = lower_exp t e in
-                assign lhs t; (* lhs is t from now on *)
+                let stmts = lower_exp t (Mark.obj e) in
+                assign (Mark.obj lhs) t; (* lhs is t from now on *)
                 stmts in
     List.concat_map ~f:lower_stmt program

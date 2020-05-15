@@ -14,21 +14,24 @@ let op_info = function
     | L.Times | L.Divide -> (6, Left)
 
 let rec parse_atom lexer = 
-    match L.pop lexer with
-    | L.IntVal x -> IntVal x
-    | L.Symbol s -> Variable s
+    let tok = L.pop lexer in
+    match Mark.obj tok with
+    | L.IntVal x -> Mark.with_mark tok (IntVal x)
+    | L.Symbol s -> Mark.with_mark tok (Variable s)
     | L.LParen ->
             let atom = parse_exp lexer in
-            let tok = L.pop lexer in
-            if tok <> L.RParen then failwith "unmatched paren";
-            atom
-    | _ -> failwith "parse error"
+            let close = L.pop lexer in
+            Mark.with_range tok close (match Mark.obj close with
+            | L.RParen -> Mark.obj atom
+            | _ -> Lexer.error lexer close "Expected closing parenthesis"
+            )
+    | _ -> Lexer.error lexer tok "Expected beginning of expression"
 and parse_exp lexer =
     let rec parse_exp' min_prec = 
         let lhs = parse_atom lexer in
         let rec loop lhs =
             let tok = L.peek lexer in
-            match tok with
+            match Mark.obj tok with
                 (* seems kinda sad to have to put all the expression-ending
                  * tokens here. but it also kind of makes sense? *)
                 | Eof | RParen | Semicolon -> lhs
@@ -40,27 +43,38 @@ and parse_exp lexer =
                         | Left -> prec + 1
                         | Right -> prec in
                     let rhs = parse_exp' rhs_min_prec in
-                    loop (BinOp (op, lhs, rhs))
-                | _ -> failwith ("not an operator: " ^ L.string_of_token tok) in
+                    loop (Mark.with_range lhs rhs (BinOp (op, lhs, rhs)))
+                | _ -> Lexer.error lexer tok "not an operator" in
         loop lhs in
     parse_exp' minimum_precedence
 
 (* doesnt eat the semicolon *)
 let parse_stmt lexer = 
-    match L.pop lexer with
-    | L.Return -> Return (parse_exp lexer)
+    let tok = L.pop lexer in
+    match Mark.obj tok with
+    | L.Return -> 
+            let e = parse_exp lexer in
+            Mark.with_range tok e (Return e)
     | L.Symbol lvalue ->
-            let tok = L.pop lexer in
-            if tok <> L.Equals then failwith "Expected assignment (=)";
-            Assign(lvalue, parse_exp lexer)
-    | _ -> failwith "Illegal token to begin statement"
+            let eq = L.pop lexer in
+            begin match Mark.obj eq with
+            | L.Equals -> 
+                    let e = parse_exp lexer in
+                    Mark.with_range tok e (Assign (Mark.with_mark tok lvalue, e))
+            | _ ->  Lexer.error lexer eq "Expected assignment (=)";
+            end
+    | _ -> Lexer.error lexer tok "Unexpected token to begin statement"
 
 let parse lexer =
     let rec parse_program acc =
-        match L.peek lexer with
+        let tok = L.peek lexer in
+        match Mark.obj tok with
         | Eof -> List.rev acc
         | _ -> 
             let stmt = parse_stmt lexer in
-            if L.pop lexer <> Semicolon then failwith "Expected semicolon";
-            parse_program (stmt::acc) in
+            let stmt_end = L.pop lexer in
+            begin match Mark.obj stmt_end with
+            | Semicolon -> parse_program (stmt::acc)
+            | _ -> Lexer.error lexer stmt_end "Expected semicolon at end of statement"
+            end in
     parse_program []

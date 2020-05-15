@@ -13,8 +13,16 @@ type token =
 val string_of_op : op -> string
 val string_of_token : token -> string
 
+
 type lexer
+
 val create : string -> lexer
-val pop : lexer -> token
-val peek : lexer -> token
+val fname : lexer -> string
+val display_mark : lexer -> 'a Mark.t -> string
+
+val pop : lexer -> token Mark.t
+val peek : lexer -> token Mark.t
 val drop : lexer -> unit
+
+exception Compiler_error
+val error : lexer -> 'a Mark.t -> string -> 'b

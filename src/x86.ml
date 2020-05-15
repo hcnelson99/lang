@@ -4,7 +4,6 @@ type reg =
     | RAX | RBX | RCX | RDX | RSI | RDI | R8 
     | R9 | R10 | R11 | R12 | R13 | R14 | R15 [@@deriving sexp, compare, hash, equal]
 
-
 let all_regs = [RAX; RBX; RCX; RDX; RSI; RDI; R8; R9; R10; R11; R12; R13; R14; R15]
 
 (* first six args *)
@@ -118,7 +117,10 @@ let compute_live_ranges asm =
                     | Some e -> Hashtbl.add_exn live_ranges ~key:x ~data:(i, e)
                     | None -> () (* must have been a define that was never used *));
                 (* add uses if they don't already exist *)
-                List.iter uses ~f:(fun x -> Hashtbl.add active ~key:x ~data:(i - 1) |> ignore);
+                List.iter uses ~f:(fun x -> 
+                    (Hashtbl.add active ~key:x ~data:(i - 1) : [`Duplicate | `Ok ])
+                    |> ignore
+                );
                 go (i - 2) stmts in
     let res = go ((n - 1) * 2) rev_asm in
     let print_lvalue = function
@@ -140,12 +142,12 @@ let linear_scan (live_ranges : (LValueTemp.t, int * int) Hashtbl.t) =
         | [] -> failwith "ran out of registers"
         | reg :: regs -> free_regs := regs; reg in
     let use_phys_reg reg =
-        let free_regs' = List.filter !free_regs ~f:(fun x -> x <> reg) in
+        let free_regs' = List.filter !free_regs ~f:(fun x -> not (equal_reg x reg)) in
         if List.length !free_regs = List.length free_regs' then 
             failwith "was required to use same physical register simultaneously";
         free_regs := free_regs' in
     let free_reg reg =
-        if List.mem !free_regs reg ~equal:(=) then failwith "reg was already free";
+        if List.mem !free_regs reg ~equal:equal_reg then failwith "reg was already free";
         free_regs := reg :: !free_regs in
     let expire start active =
         let (expired, active) = List.partition_tf active 
