@@ -23,9 +23,9 @@ let string_of_stmt = function
             let binop = Lexer.string_of_op binop in
             let op1 = string_of_operand op1 in
             let op2 = string_of_operand op2 in
-            lhs ^ " = " ^ op1 ^ " " ^ binop ^ " " ^ op2
+            lhs ^ " <- " ^ op1 ^ " " ^ binop ^ " " ^ op2
     | Assign (lhs, operand) -> 
-            Temp.string_of_t lhs ^ " = " ^ string_of_operand operand
+            Temp.string_of_t lhs ^ " <- " ^ string_of_operand operand
     | Return e -> "return " ^ string_of_operand e
 
 let string_of_program program =

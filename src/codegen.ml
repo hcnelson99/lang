@@ -42,9 +42,13 @@ let emit_stmt = function
              Printf.sprintf "movq %%rax, %s" (emit_temp res);
             ]
 
-let emit program =
+let emit ir =
+    let () = ir
+        |> X86.lower_to_x86
+        |> X86.string_of_program
+        |> print_endline in
     let stack_size = 8 * Temp.max_temp_hack () in
     prologue stack_size ^
-    (List.map ~f:emit_stmt program
+    (List.map ~f:emit_stmt ir
     |> String.concat ~sep:"\n")
     ^ epilogue stack_size
