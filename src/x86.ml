@@ -46,27 +46,32 @@ let string_of_reg = function
 
 (* TODO: support spilling ... ? *)
 
-let string_of_lvalue = function
+let string_of_temp_lvalue = function
+    | Reg r -> string_of_reg r
+    | Temp s -> Temp.string_of_t s
+
+let string_of_reg_lvalue = function
     | Reg r -> string_of_reg r
     | Temp s -> string_of_reg s
     
-let string_of_operand = function
+let string_of_operand sol = function
     | Imm i -> "$" ^ Int.to_string i
-    | LValue l -> string_of_lvalue l
+    | LValue l -> sol l
 
 let string_of_two_op = function
     | Imul -> "imulq"
     | Add -> "addq"
     | Sub -> "subq"
 
-let string_of_stmt = function
-    | TwoAddr (two_op, op, lvalue) -> string_of_two_op two_op ^ " " ^ string_of_operand op ^ ", " ^ string_of_lvalue lvalue
-    | Mov (op, lvalue) -> "movq " ^ string_of_operand op ^ ", " ^ string_of_lvalue lvalue
+let string_of_stmt sol = function
+    | TwoAddr (two_op, op, lvalue) -> string_of_two_op two_op ^ " " ^ string_of_operand sol op ^ ", " ^ sol lvalue
+    | Mov (op, lvalue) -> "movq " ^ string_of_operand sol op ^ ", " ^ sol lvalue
 
 let string_of_program program =
     program
-    |> List.map ~f:string_of_stmt
+    |> List.map ~f:(string_of_stmt string_of_reg_lvalue)
     |> String.concat ~sep:"\n"
+
 
 let lower_to_two_address ir =
     let lower_operand = function
@@ -91,10 +96,10 @@ module LValueTemp = struct
     type t = Temp.t lvalue [@@deriving sexp, compare, hash, equal]
 end
 
-let compute_live_ranges asm =
-    let active = Hashtbl.create (module LValueTemp) in
-    let live_ranges = Hashtbl.create (module LValueTemp) in
-    let n = List.length asm in
+
+(* return (stmt * creations * expired) list *)
+let compute_live_ranges asm : (Temp.t stmt * LValueTemp.t list * LValueTemp.t list) list =
+    let active = Hash_set.create (module LValueTemp) in
     let rev_asm = List.rev asm in
     let operand_to_lvalue = function
         | Imm _ -> []
@@ -105,36 +110,32 @@ let compute_live_ranges asm =
     let get_uses = function
         | TwoAddr(_, op, lvalue) -> lvalue :: operand_to_lvalue op 
         | Mov (op, _) -> operand_to_lvalue op in
-    let rec go i = function
-        | [] -> live_ranges
+    let rec go acc = function
+        | [] -> acc
         | stmt :: stmts -> 
+                (* TODO: this assumes everything will be defined only once? not totally sure about this... *)
                 let (defines, uses) = (get_defines stmt, get_uses stmt) in
-                let defines_not_used = List.filter defines 
+                (* things that were defined on this line but not used are creations *)
+                let creations = List.filter defines 
                     ~f:(fun x -> not (List.mem uses x ~equal:LValueTemp.equal)) in
-                (* remove defines that are not also used *)
-                List.iter defines_not_used ~f:(fun x -> 
-                    match Hashtbl.find_and_remove active x with
-                    | Some e -> Hashtbl.add_exn live_ranges ~key:x ~data:(i, e)
-                    | None -> () (* must have been a define that was never used *));
-                (* add uses if they don't already exist *)
-                List.iter uses ~f:(fun x -> 
-                    (Hashtbl.add active ~key:x ~data:(i - 1) : [`Duplicate | `Ok ])
-                    |> ignore
+                List.iter creations ~f:(fun x -> 
+                    Hash_set.remove active x
                 );
-                go (i - 2) stmts in
-    let res = go ((n - 1) * 2) rev_asm in
-    let print_lvalue = function
-        | Reg r -> string_of_reg r
-        | Temp t -> Printf.sprintf "%%t%d" (Temp.number t) in
-    Hashtbl.to_alist res
-    |> List.iter ~f:(fun (a, (b, c)) -> Printf.printf "%s: %d, %d\n" (print_lvalue a) b c);
+                (* add uses if they don't already exist *)
+                (* something expires here if we are adding it to the active list for the first time *)
+                let expires = List.concat_map uses ~f:(fun x -> 
+                    if Hash_set.mem active x then []
+                    else (Hash_set.add active x; [x])
+                ) in
+                go ((stmt, creations, expires) :: acc) stmts in
+    let res = go [] rev_asm in
+    let p_tl = List.to_string ~f:string_of_temp_lvalue in
+    List.iter res ~f:(fun (stmt, creations, expires) ->
+        Printf.printf "%s (created: %s, expired: %s\n" (string_of_stmt string_of_temp_lvalue stmt) (p_tl creations) (p_tl expires));
     res
 
-let linear_scan (live_ranges : (LValueTemp.t, int * int) Hashtbl.t) =
-    let live_ranges_sort_start =
-        Hashtbl.to_alist live_ranges
-        |> List.map ~f:(fun (x, (y, z)) -> (x, y, z))
-        |> List.sort ~compare:(fun (_, s1, _) (_, s2, _) -> Int.compare s1 s2) in
+let register_allocate (asm : Temp.t program) =
+    let live_ranges_asm = compute_live_ranges asm in
     let register_mapping = Hashtbl.create (module Temp) in
     (* TODO: better way of handling free registers, spilling? *)
     let free_regs = ref all_regs in
@@ -149,37 +150,28 @@ let linear_scan (live_ranges : (LValueTemp.t, int * int) Hashtbl.t) =
     let free_reg reg =
         if List.mem !free_regs reg ~equal:equal_reg then failwith "reg was already free";
         free_regs := reg :: !free_regs in
-    let expire start active =
-        let (expired, active) = List.partition_tf active 
-            ~f:(fun (_, _, stop') -> stop' < start) in
-        List.iter expired ~f:(fun (t, _, _) -> 
-            let reg = match t with
+    let expire t =
+        let reg = match t with
             | Reg r -> r
             | Temp t -> Hashtbl.find_exn register_mapping t in
-            free_reg reg);
-        active in
-    let rec go active = function
-        | [] -> register_mapping
-        | range :: ranges ->
-                let (lvalue, start, _) = range in
-                let active = expire start active in
-                (match lvalue with
-                | Reg r -> use_phys_reg r
-                | Temp t -> Hashtbl.add_exn register_mapping ~key:t ~data:(fresh_reg ()));
-                go (range :: active) ranges
+        free_reg reg;
+        in
+    let rec go acc = function
+        | [] -> List.rev acc
+        | (stmt, creations, expires)  :: ranges ->
+                List.iter expires ~f:expire;
+                List.iter creations ~f:(fun new_reg -> match new_reg with
+                    | Reg r -> use_phys_reg r
+                    | Temp t -> Hashtbl.add_exn register_mapping ~key:t ~data:(fresh_reg ()));
+                let map_lvalue = function
+                    | Reg r -> Reg r
+                    | Temp t -> Temp (Hashtbl.find_exn register_mapping t) in
+                let map_operand = function
+                    | Imm i -> Imm i
+                    | LValue l -> LValue (map_lvalue l) in
+                let map_stmt = function
+                    | TwoAddr (two_op, o, l) -> TwoAddr (two_op, map_operand o, map_lvalue l)
+                    | Mov (o, l) -> Mov(map_operand o, map_lvalue l) in
+                go (map_stmt stmt :: acc) ranges
     in
-    go [] live_ranges_sort_start
-
-let register_allocate asm =
-    let ranges = compute_live_ranges asm in
-    let reg_assignment = linear_scan ranges in
-    let map_lvalue = function
-        | Reg r -> Reg r
-        | Temp t -> Temp (Hashtbl.find_exn reg_assignment t) in
-    let map_operand = function
-        | Imm i -> Imm i
-        | LValue l -> LValue (map_lvalue l) in
-    let map_stmt = function
-        | TwoAddr (two_op, o, l) -> TwoAddr (two_op, map_operand o, map_lvalue l)
-        | Mov (o, l) -> Mov(map_operand o, map_lvalue l) in
-    List.map ~f:map_stmt asm
+    go [] live_ranges_asm

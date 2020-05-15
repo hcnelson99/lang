@@ -75,6 +75,6 @@ let parse lexer =
             let stmt_end = L.pop lexer in
             begin match Mark.obj stmt_end with
             | Semicolon -> parse_program (stmt::acc)
-            | _ -> Lexer.error lexer stmt_end "Expected semicolon at end of statement"
+            | _ -> Lexer.error lexer stmt "Expected semicolon at end of statement"
             end in
     parse_program []

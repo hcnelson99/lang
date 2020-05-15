@@ -60,7 +60,7 @@ let display_mark lexer m =
     if r1 = r2 then
         let line = List.nth_exn lines (r1 - 1) in
         let repeat s n = List.init n ~f:(fun _ -> s) |> String.concat in
-        let underline = repeat " " (c1 - 1) ^ repeat "^" (c2 - c1) in
+        let underline = repeat " " (c1 - 1) ^ "^" ^ repeat "~" (c2 - c1 - 1) in
         line ^ "\n" ^ underline
     else Printf.sprintf "%d:%d - %d:%d" r1 c1 r2 c2
 
