@@ -146,13 +146,11 @@ let linear_scan (live_ranges : (LValueTemp.t, int * int) Hashtbl.t) =
         free_regs := free_regs' in
     let free_reg reg =
         if List.mem !free_regs reg ~equal:(=) then failwith "reg was already free";
-        let () = Printf.printf "freeing %s\n" (string_of_reg reg) in
         free_regs := reg :: !free_regs in
     let expire start active =
         let (expired, active) = List.partition_tf active 
             ~f:(fun (_, _, stop') -> stop' < start) in
         List.iter expired ~f:(fun (t, _, _) -> 
-            let () = print_endline "WOOOO" in
             let reg = match t with
             | Reg r -> r
             | Temp t -> Hashtbl.find_exn register_mapping t in
