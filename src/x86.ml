@@ -2,7 +2,7 @@ open Core
 
 type reg = 
     | RAX | RBX | RCX | RDX | RSI | RDI | R8 
-    | R9 | R10 | R11 | R12 | R13 | R14 | R15
+    | R9 | R10 | R11 | R12 | R13 | R14 | R15 [@@deriving sexp, compare, hash]
 
 (* first six args *)
 let _arg_regs = [RDI; RSI; RDX; RCX; R8; R9]
@@ -12,7 +12,7 @@ let _caller_save = [RAX; RCX; RDX; RSI; RDI; R8; R9; R10; R11]
 (* also rsp, rbp *)
 let _callee_save = [RBX; R12; R13; R14; R15]
 
-type 'a lvalue = Reg of reg | Temp of 'a
+type 'a lvalue = Reg of reg | Temp of 'a [@@deriving sexp, compare, hash]
 
 type 'a operand =
     | Imm of int
@@ -44,8 +44,7 @@ let string_of_reg = function
 
 let string_of_lvalue = function
     | Reg r -> string_of_reg r
-    (* TODO: make this print for ints instead of Temp.ts *)
-    | Temp s -> Printf.sprintf "-%d(%%rbp)" (8 * Temp.number s)
+    | Temp s -> "%t" ^ Int.to_string (Temp.number s)
     
 let string_of_operand = function
     | Imm i -> "$" ^ Int.to_string i
@@ -65,7 +64,7 @@ let string_of_program program =
     |> List.map ~f:(fun s -> "  " ^ string_of_stmt s) 
     |> String.concat ~sep:"\n"
 
-let lower_to_x86 ir =
+let lower_to_two_address ir =
     let lower_operand = function
         | Ir.IntVal i -> Imm i
         | Ir.Temp t -> LValue (Temp t) in
@@ -83,3 +82,36 @@ let lower_to_x86 ir =
                 [Mov (lower_operand op1, Temp t);
                  TwoAddr (op, lower_operand op2, Temp t)] in
     List.concat_map ~f:lower_stmt ir
+
+module LValueTemp = struct
+    type t = Temp.t lvalue [@@deriving sexp, compare, hash]
+end
+
+let liveness ir =
+    let active = Hash_set.create (module LValueTemp) () in
+    let rev_ir = List.rev ir in
+    let operand_to_lvalue = function
+        | Imm _ -> []
+        | LValue x -> [x] in
+    let defines = function
+        | TwoAddr(_, _, lvalue) -> [lvalue]
+        | Mov (_, lvalue) -> [lvalue] in
+    let uses = function
+        | TwoAddr(_, op, lvalue) -> lvalue :: operand_to_lvalue op 
+        | Mov (op, _) -> operand_to_lvalue op in
+    let rec go = function
+        | [] -> ()
+        | i :: is -> 
+                active
+                |> Hash_set.to_list
+                |> List.map ~f:string_of_lvalue
+                |> String.concat ~sep:" "
+                |> (fun x -> "  " ^ x)
+                |> print_endline;
+                print_endline (string_of_stmt i);
+                let (d, u) = (defines i, uses i) in
+                List.iter d ~f:(fun x -> Hash_set.remove active x);
+                List.iter u ~f:(fun x -> Hash_set.add active x);
+                go is in
+    go rev_ir
+
