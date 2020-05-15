@@ -16,6 +16,6 @@ type 'a stmt =
 
 type 'a program = 'a stmt list
 
-val string_of_program : Temp.t program -> string
+val string_of_program : reg program -> string
 val lower_to_two_address : Ir.program -> Temp.t program
-val liveness : Temp.t program -> unit
+val register_allocate : Temp.t program -> reg program

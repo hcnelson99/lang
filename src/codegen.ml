@@ -28,7 +28,7 @@ let emit_op = function
     | Lexer.Divide -> failwith "not yet implemented?"
     | Lexer.Minus -> "subq"
 
-let emit_stmt = function
+let _emit_stmt = function
     | Return op -> "movq " ^ emit_operand op ^ ", %rax"
     | Assign (t1, op) -> 
             String.concat ~sep:"\n"
@@ -43,13 +43,12 @@ let emit_stmt = function
             ]
 
 let emit (ir : Ir.program) =
-    let () = ir
-        |> X86.lower_to_two_address 
-        |> X86.string_of_program
-        |> print_endline in
-    let () = X86.liveness (X86.lower_to_two_address ir) in
-    let stack_size = 8 * Temp.max_temp_hack () in
-    prologue stack_size ^
-    (List.map ~f:emit_stmt ir
-    |> String.concat ~sep:"\n")
-    ^ epilogue stack_size
+    let asm = X86.lower_to_two_address ir in
+    let asm = X86.register_allocate asm in
+    let stack_size = 0 in
+    let out = prologue stack_size ^
+        X86.string_of_program asm
+        ^ epilogue stack_size in
+    print_endline out;
+    out
+
