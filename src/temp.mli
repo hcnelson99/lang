@@ -1,4 +1,4 @@
-type t [@@deriving sexp, compare, hash]
+type t [@@deriving sexp, compare, hash, equal]
 val create : unit -> t
 val string_of_t : t -> string
 

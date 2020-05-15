@@ -2,7 +2,7 @@ open Core
 
 type reg = 
     | RAX | RBX | RCX | RDX | RSI | RDI | R8 
-    | R9 | R10 | R11 | R12 | R13 | R14 | R15 [@@deriving sexp, compare, hash]
+    | R9 | R10 | R11 | R12 | R13 | R14 | R15 [@@deriving sexp, compare, hash, equal]
 
 (* first six args *)
 let _arg_regs = [RDI; RSI; RDX; RCX; R8; R9]
@@ -12,7 +12,7 @@ let _caller_save = [RAX; RCX; RDX; RSI; RDI; R8; R9; R10; R11]
 (* also rsp, rbp *)
 let _callee_save = [RBX; R12; R13; R14; R15]
 
-type 'a lvalue = Reg of reg | Temp of 'a [@@deriving sexp, compare, hash]
+type 'a lvalue = Reg of reg | Temp of 'a [@@deriving sexp, compare, hash, equal]
 
 type 'a operand =
     | Imm of int
@@ -61,7 +61,7 @@ let string_of_stmt = function
 
 let string_of_program program =
     program
-    |> List.map ~f:(fun s -> "  " ^ string_of_stmt s) 
+    |> List.mapi ~f:(fun i s -> "  " ^ string_of_stmt s ^ "\t// " ^ Int.to_string i) 
     |> String.concat ~sep:"\n"
 
 let lower_to_two_address ir =
@@ -84,34 +84,40 @@ let lower_to_two_address ir =
     List.concat_map ~f:lower_stmt ir
 
 module LValueTemp = struct
-    type t = Temp.t lvalue [@@deriving sexp, compare, hash]
+    type t = Temp.t lvalue [@@deriving sexp, compare, hash, equal]
 end
 
 let liveness ir =
-    let active = Hash_set.create (module LValueTemp) () in
+    let active = Hashtbl.create (module LValueTemp) in
+    let ranges = Hashtbl.create (module LValueTemp) in
+    let n = List.length ir in
     let rev_ir = List.rev ir in
     let operand_to_lvalue = function
         | Imm _ -> []
         | LValue x -> [x] in
-    let defines = function
+    let get_defines = function
         | TwoAddr(_, _, lvalue) -> [lvalue]
         | Mov (_, lvalue) -> [lvalue] in
-    let uses = function
+    let get_uses = function
         | TwoAddr(_, op, lvalue) -> lvalue :: operand_to_lvalue op 
         | Mov (op, _) -> operand_to_lvalue op in
-    let rec go = function
+    let rec go i = function
         | [] -> ()
-        | i :: is -> 
-                active
-                |> Hash_set.to_list
-                |> List.map ~f:string_of_lvalue
-                |> String.concat ~sep:" "
-                |> (fun x -> "  " ^ x)
-                |> print_endline;
-                print_endline (string_of_stmt i);
-                let (d, u) = (defines i, uses i) in
-                List.iter d ~f:(fun x -> Hash_set.remove active x);
-                List.iter u ~f:(fun x -> Hash_set.add active x);
-                go is in
-    go rev_ir
+        | stmt :: stmts -> 
+                let (defines, uses) = (get_defines stmt, get_uses stmt) in
+                let defines_not_used = List.filter defines 
+                    ~f:(fun x -> not (List.mem uses x ~equal:LValueTemp.equal)) in
+                (* remove defines that are not also used *)
+                List.iter defines_not_used ~f:(fun x -> 
+                    match Hashtbl.find_and_remove active x with
+                    | Some e -> Hashtbl.add_exn ranges ~key:x ~data:(i, e)
+                    | None -> () (* must have been a define that was never used *));
+                (* add uses if they don't already exist *)
+                List.iter uses ~f:(fun x -> Hashtbl.add active ~key:x ~data:i |> ignore);
+                go (i-1) stmts in
+    go (n - 1) rev_ir;
+    Hashtbl.to_alist ranges
+    |> List.map ~f:(fun (l, (s, e)) -> Printf.sprintf "%s: %d, %d" (string_of_lvalue l) s e)
+    |> String.concat ~sep:"\n"
+    |> print_endline
 
