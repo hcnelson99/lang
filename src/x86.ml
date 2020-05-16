@@ -113,7 +113,7 @@ let compute_live_ranges asm : (Temp.t stmt * LValueTemp.t list * LValueTemp.t li
     let rec go acc = function
         | [] -> acc
         | stmt :: stmts -> 
-                (* TODO: this assumes everything will be defined only once? not totally sure about this... *)
+                (* TODO: this will let the same register expire multiple times unfortunately... *)
                 let (defines, uses) = (get_defines stmt, get_uses stmt) in
                 (* things that were defined on this line but not used are creations *)
                 let creations = List.filter defines 
@@ -137,41 +137,71 @@ let compute_live_ranges asm : (Temp.t stmt * LValueTemp.t list * LValueTemp.t li
 let register_allocate (asm : Temp.t program) =
     let live_ranges_asm = compute_live_ranges asm in
     let register_mapping = Hashtbl.create (module Temp) in
-    (* TODO: better way of handling free registers, spilling? *)
+
     let free_regs = ref all_regs in
-    let fresh_reg () = match !free_regs with
+
+    let fresh_reg preference = match !free_regs with
         | [] -> failwith "ran out of registers"
-        | reg :: regs -> free_regs := regs; reg in
+        | reg :: regs -> match preference with
+            | None -> (free_regs := regs; reg)
+            | Some r -> if List.mem !free_regs r ~equal:equal_reg
+                then (free_regs := List.filter ~f:(fun x -> not (equal_reg x r)) !free_regs; r)
+                else (free_regs := regs; reg) in
+
+    (* TODO: make this return that it can fail *)
     let use_phys_reg reg =
         let free_regs' = List.filter !free_regs ~f:(fun x -> not (equal_reg x reg)) in
         if List.length !free_regs = List.length free_regs' then 
             failwith "was required to use same physical register simultaneously";
         free_regs := free_regs' in
+
     let free_reg reg =
         if List.mem !free_regs reg ~equal:equal_reg then failwith "reg was already free";
         free_regs := reg :: !free_regs in
+
     let expire t =
         let reg = match t with
             | Reg r -> r
             | Temp t -> Hashtbl.find_exn register_mapping t in
-        free_reg reg;
-        in
+        free_reg reg in
+
     let rec go acc = function
         | [] -> List.rev acc
         | (stmt, creations, expires)  :: ranges ->
                 List.iter expires ~f:expire;
+
                 List.iter creations ~f:(fun new_reg -> match new_reg with
                     | Reg r -> use_phys_reg r
-                    | Temp t -> Hashtbl.add_exn register_mapping ~key:t ~data:(fresh_reg ()));
+                    | Temp t -> 
+                            (* For moves, try to allocate the same register as
+                             * the source register (coalescing). This will be
+                             * cleaned up by a later pass *)
+                            let src_reg = match stmt with
+                            | Mov (src, _) -> begin match src with
+                                | Imm _ -> None
+                                | LValue (Reg r) -> Some r
+                                | LValue (Temp t) -> Some (Hashtbl.find_exn register_mapping t)
+                                end
+                            | _ -> None in
+                            Hashtbl.add_exn register_mapping ~key:t ~data:(fresh_reg src_reg));
+
                 let map_lvalue = function
                     | Reg r -> Reg r
-                    | Temp t -> Temp (Hashtbl.find_exn register_mapping t) in
+                    | Temp t -> Reg (Hashtbl.find_exn register_mapping t) in
                 let map_operand = function
                     | Imm i -> Imm i
                     | LValue l -> LValue (map_lvalue l) in
                 let map_stmt = function
                     | TwoAddr (two_op, o, l) -> TwoAddr (two_op, map_operand o, map_lvalue l)
                     | Mov (o, l) -> Mov(map_operand o, map_lvalue l) in
+
                 go (map_stmt stmt :: acc) ranges
     in
     go [] live_ranges_asm
+
+
+let peephole_stmt stmt = match stmt with
+    | Mov (LValue (Reg src), Reg dst) -> if equal_reg src dst then [] else [stmt]
+    | _ -> [stmt]
+
+let peephole = List.concat_map ~f:peephole_stmt
