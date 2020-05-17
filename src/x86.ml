@@ -174,7 +174,7 @@ let register_allocate (asm : Temp.t program) =
     let free_regs = ref allocatable_regs in
 
     (* For debugging: always spill *)
-    (* let fresh_lvalue _ = Temp (StackSlot.fresh ()) in *)
+    (* let fresh_lvalue _ = Temp (StackSlot.fresh None) in *)
 
     let fresh_reg (preference : reg option) = match !free_regs with
             | [] -> Temp (StackSlot.fresh None)
@@ -184,7 +184,8 @@ let register_allocate (asm : Temp.t program) =
                     then (free_regs := List.filter ~f:(fun x -> not (equal_reg x pref)) !free_regs; Reg pref)
                     else (free_regs := regs; Reg reg) in
 
-    (* TODO: this logic is quite weird *)
+    (* TODO: between fresh_lvalue and fresh_reg, all of this logic is quite
+     * complicated and not great... *)
     let fresh_lvalue (preference : StackSlot.t lvalue option) = match preference with
         | None -> fresh_reg None
         | Some (Reg r) -> fresh_reg (Some r)
