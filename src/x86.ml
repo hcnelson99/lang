@@ -4,7 +4,9 @@ type reg =
     | RAX | RBX | RCX | RDX | RSI | RDI | R8 
     | R9 | R10 | R11 | R12 | R13 | R14 | R15 [@@deriving sexp, compare, hash, equal]
 
-let all_regs = [RAX; RBX; RCX; RDX; RSI; RDI; R8; R9; R10; R11; R12; R13; R14; R15]
+let _all_regs = [RAX; RBX; RCX; RDX; RSI; RDI; R8; R9; R10; R11; R12; R13; R14; R15]
+let allocatable_regs = [RAX; RBX; RCX; RDX; RSI; RDI; R8; R9; R10; R11; R12; R13; R14]
+let spill_reg = R15
 
 (* first six args *)
 let _arg_regs = [RDI; RSI; RDX; RCX; R8; R9]
@@ -28,6 +30,37 @@ type 'a stmt =
 
 type 'a program = 'a stmt list
 
+module type STACKSLOT = sig
+    type t [@@deriving equal]
+    val fresh : t option -> t
+    val retire : t -> unit
+
+    val offset : t -> int
+
+    val max_slot : unit -> int
+end
+
+module StackSlot : STACKSLOT = struct
+    type t = int [@@deriving equal]
+
+    let next = ref 1
+    let free = ref []
+
+    let fresh preference = match !free with
+        | []  -> let res = !next in (next := res + 1; res)
+        | x::xs ->  match preference with
+            | None -> (free := xs; x)
+            | Some pref -> if List.mem !free pref ~equal:Int.equal
+                then (free := List.filter ~f:(fun x -> not (Int.equal x pref)) !free; pref)
+                else (free := xs; x)
+
+    let offset s = s * 8
+    let retire slot = (free := slot :: !free)
+
+    (* TODO: could be better. two-pass solution? *)
+    let max_slot () = !next * 8
+end
+
 let string_of_reg = function
     | RAX -> "%rax"
     | RBX -> "%rbx"
@@ -50,9 +83,9 @@ let string_of_temp_lvalue = function
     | Reg r -> string_of_reg r
     | Temp s -> Temp.string_of_t s
 
-let string_of_reg_lvalue = function
+let string_of_stackslot_lvalue = function
     | Reg r -> string_of_reg r
-    | Temp s -> string_of_reg s
+    | Temp s -> Printf.sprintf "-%d(%%rbp)" (StackSlot.offset s)
     
 let string_of_operand sol = function
     | Imm i -> "$" ^ Int.to_string i
@@ -69,7 +102,7 @@ let string_of_stmt sol = function
 
 let string_of_program program =
     program
-    |> List.map ~f:(string_of_stmt string_of_reg_lvalue)
+    |> List.map ~f:(string_of_stmt string_of_stackslot_lvalue)
     |> String.concat ~sep:"\n"
 
 
@@ -97,7 +130,7 @@ module LValueTemp = struct
 end
 
 
-(* return (stmt * creations * expired) list *)
+(* return (stmt * creations * retired) list *)
 let compute_live_ranges asm : (Temp.t stmt * LValueTemp.t list * LValueTemp.t list) list =
     let active = Hash_set.create (module LValueTemp) in
     let rev_asm = List.rev asm in
@@ -113,7 +146,7 @@ let compute_live_ranges asm : (Temp.t stmt * LValueTemp.t list * LValueTemp.t li
     let rec go acc = function
         | [] -> acc
         | stmt :: stmts -> 
-                (* TODO: this will let the same register expire multiple times unfortunately... *)
+                (* TODO: this will let the same register retire multiple times unfortunately... *)
                 let (defines, uses) = (get_defines stmt, get_uses stmt) in
                 (* things that were defined on this line but not used are creations *)
                 let creations = List.filter defines 
@@ -122,53 +155,67 @@ let compute_live_ranges asm : (Temp.t stmt * LValueTemp.t list * LValueTemp.t li
                     Hash_set.remove active x
                 );
                 (* add uses if they don't already exist *)
-                (* something expires here if we are adding it to the active list for the first time *)
-                let expires = List.concat_map uses ~f:(fun x -> 
+                (* something retires here if we are adding it to the active list for the first time *)
+                let retires = List.concat_map uses ~f:(fun x -> 
                     if Hash_set.mem active x then []
                     else (Hash_set.add active x; [x])
                 ) in
-                go ((stmt, creations, expires) :: acc) stmts in
+                go ((stmt, creations, retires) :: acc) stmts in
     let res = go [] rev_asm in
     let p_tl = List.to_string ~f:string_of_temp_lvalue in
-    List.iter res ~f:(fun (stmt, creations, expires) ->
-        Printf.printf "%s (created: %s, expired: %s\n" (string_of_stmt string_of_temp_lvalue stmt) (p_tl creations) (p_tl expires));
+    List.iter res ~f:(fun (stmt, creations, retires) ->
+        Printf.printf "%s (created: %s, retired: %s\n" (string_of_stmt string_of_temp_lvalue stmt) (p_tl creations) (p_tl retires));
     res
 
 let register_allocate (asm : Temp.t program) =
     let live_ranges_asm = compute_live_ranges asm in
-    let register_mapping = Hashtbl.create (module Temp) in
+    let register_mapping : (Temp.t, StackSlot.t lvalue) Hashtbl.t = Hashtbl.create (module Temp) in
 
-    let free_regs = ref all_regs in
+    let free_regs = ref allocatable_regs in
 
-    let fresh_reg preference = match !free_regs with
-        | [] -> failwith "ran out of registers"
-        | reg :: regs -> match preference with
-            | None -> (free_regs := regs; reg)
-            | Some r -> if List.mem !free_regs r ~equal:equal_reg
-                then (free_regs := List.filter ~f:(fun x -> not (equal_reg x r)) !free_regs; r)
-                else (free_regs := regs; reg) in
+    (* For debugging: always spill *)
+    (* let fresh_lvalue _ = Temp (StackSlot.fresh ()) in *)
 
-    (* TODO: make this return that it can fail *)
+    let fresh_reg (preference : reg option) = match !free_regs with
+            | [] -> Temp (StackSlot.fresh None)
+            | reg :: regs -> match preference with
+                | None -> (free_regs := regs; Reg reg)
+                | Some pref -> if List.mem !free_regs pref ~equal:equal_reg
+                    then (free_regs := List.filter ~f:(fun x -> not (equal_reg x pref)) !free_regs; Reg pref)
+                    else (free_regs := regs; Reg reg) in
+
+    (* TODO: this logic is quite weird *)
+    let fresh_lvalue (preference : StackSlot.t lvalue option) = match preference with
+        | None -> fresh_reg None
+        | Some (Reg r) -> fresh_reg (Some r)
+        | Some (Temp t) -> match !free_regs with
+            | [] -> Temp (StackSlot.fresh (Some t))
+            | _ -> fresh_reg None in
+
+    (* TODO: make this return that it can fail (if it was required to use the
+     * same physical register simultaneously) *)
     let use_phys_reg reg =
         let free_regs' = List.filter !free_regs ~f:(fun x -> not (equal_reg x reg)) in
         if List.length !free_regs = List.length free_regs' then 
             failwith "was required to use same physical register simultaneously";
         free_regs := free_regs' in
 
-    let free_reg reg =
-        if List.mem !free_regs reg ~equal:equal_reg then failwith "reg was already free";
-        free_regs := reg :: !free_regs in
+    let free_lvalue lvalue = match lvalue with
+        | Temp s -> StackSlot.retire s
+        | Reg reg ->
+            if List.mem !free_regs reg ~equal:equal_reg then failwith "reg was already free";
+            free_regs := reg :: !free_regs in
 
-    let expire t =
-        let reg = match t with
-            | Reg r -> r
+    let retire t =
+        let lvalue = match t with
+            | Reg r -> Reg r
             | Temp t -> Hashtbl.find_exn register_mapping t in
-        free_reg reg in
+        free_lvalue lvalue in
 
     let rec go acc = function
         | [] -> List.rev acc
-        | (stmt, creations, expires)  :: ranges ->
-                List.iter expires ~f:expire;
+        | (stmt, creations, retires)  :: ranges ->
+                List.iter retires ~f:retire;
 
                 List.iter creations ~f:(fun new_reg -> match new_reg with
                     | Reg r -> use_phys_reg r
@@ -179,15 +226,15 @@ let register_allocate (asm : Temp.t program) =
                             let src_reg = match stmt with
                             | Mov (src, _) -> begin match src with
                                 | Imm _ -> None
-                                | LValue (Reg r) -> Some r
+                                | LValue (Reg r) -> Some (Reg r)
                                 | LValue (Temp t) -> Some (Hashtbl.find_exn register_mapping t)
                                 end
                             | _ -> None in
-                            Hashtbl.add_exn register_mapping ~key:t ~data:(fresh_reg src_reg));
+                            Hashtbl.add_exn register_mapping ~key:t ~data:(fresh_lvalue src_reg));
 
                 let map_lvalue = function
                     | Reg r -> Reg r
-                    | Temp t -> Reg (Hashtbl.find_exn register_mapping t) in
+                    | Temp t -> Hashtbl.find_exn register_mapping t in
                 let map_operand = function
                     | Imm i -> Imm i
                     | LValue l -> LValue (map_lvalue l) in
@@ -197,11 +244,32 @@ let register_allocate (asm : Temp.t program) =
 
                 go (map_stmt stmt :: acc) ranges
     in
-    go [] live_ranges_asm
+    let reg_allocated_asm = go [] live_ranges_asm in
+    let remove_double_memory_references asm = 
+        let modify_stmt stmt = match stmt with
+            | Mov (LValue (Temp src), Temp dst) ->
+                    [ Mov (LValue (Temp src), Reg spill_reg);
+                      Mov (LValue (Reg spill_reg), Temp dst) ]
+            (* For imuls, the destination cannot be a memory address *)
+           | TwoAddr (Imul, LValue (Temp src), Temp dst) ->
+                    [ Mov (LValue (Temp dst), Reg spill_reg);
+                      TwoAddr (Imul, LValue (Temp src), Reg spill_reg);
+                      Mov (LValue (Reg spill_reg), Temp dst);
+                    ]
+            | TwoAddr (two_op, LValue (Temp src), Temp dst) ->
+                    [ Mov (LValue (Temp src), Reg spill_reg);
+                      TwoAddr (two_op, LValue (Reg spill_reg), Temp dst)
+                    ]
+            | _ -> [stmt]
+            in
+        List.concat_map ~f:modify_stmt asm
+        in
+    remove_double_memory_references reg_allocated_asm
 
 
 let peephole_stmt stmt = match stmt with
     | Mov (LValue (Reg src), Reg dst) -> if equal_reg src dst then [] else [stmt]
+    | Mov (LValue (Temp src), Temp dst) -> if StackSlot.equal src dst then [] else [stmt]
     | _ -> [stmt]
 
 let peephole = List.concat_map ~f:peephole_stmt

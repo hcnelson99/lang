@@ -55,7 +55,7 @@ let emit (ir : Ir.program) =
     let asm = X86.lower_to_two_address ir in
     let asm = X86.register_allocate asm in
     let asm = X86.peephole asm in
-    let stack_size = 0 in
+    let stack_size = X86.StackSlot.max_slot () in
     let out = prologue stack_size ^
         X86.string_of_program asm
         ^ epilogue stack_size in
