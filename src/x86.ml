@@ -146,7 +146,12 @@ let compute_live_ranges asm : (Temp.t stmt * LValueTemp.t list * LValueTemp.t li
     let rec go acc = function
         | [] -> acc
         | stmt :: stmts -> 
-                (* TODO: this will let the same register retire multiple times unfortunately... *)
+                (* TODO: this will let the same register retire multiple times
+                 * unfortunately. Basically, if a register is re-defined, it
+                 * can be created, expire, be created again, and expire again
+                 * (get live-range split). I actually think this is okay since
+                 * our register allocator below already deals with this
+                 * properly (because it does everything in one pass) *)
                 let (defines, uses) = (get_defines stmt, get_uses stmt) in
                 (* things that were defined on this line but not used are creations *)
                 let creations = List.filter defines 
@@ -222,8 +227,8 @@ let register_allocate (asm : Temp.t program) =
                     | Reg r -> use_phys_reg r
                     | Temp t -> 
                             (* For moves, try to allocate the same register as
-                             * the source register (coalescing). This will be
-                             * cleaned up by a later pass *)
+                             * the source register (coalescing). NOP moves will
+                             * be cleaned up by a later pass *)
                             let src_reg = match stmt with
                             | Mov (src, _) -> begin match src with
                                 | Imm _ -> None
