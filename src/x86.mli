@@ -13,6 +13,8 @@ type two_op = Imul | Add | Sub
 type 'a stmt =
     | TwoAddr of two_op * 'a operand * 'a lvalue
     | Mov of 'a operand * 'a lvalue
+    | Idiv of 'a operand
+    | Cqto
 
 type 'a program = 'a stmt list
 

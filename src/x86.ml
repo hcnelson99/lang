@@ -27,6 +27,8 @@ type two_op = Imul | Add | Sub
 type 'a stmt =
     | TwoAddr of two_op * 'a operand * 'a lvalue
     | Mov of 'a operand * 'a lvalue
+    | Idiv of 'a operand
+    | Cqto
 
 type 'a program = 'a stmt list
 
@@ -77,8 +79,6 @@ let string_of_reg = function
     | R14 -> "%r14"
     | R15 -> "%r15"
 
-(* TODO: support spilling ... ? *)
-
 let string_of_temp_lvalue = function
     | Reg r -> string_of_reg r
     | Temp s -> Temp.string_of_t s
@@ -99,28 +99,36 @@ let string_of_two_op = function
 let string_of_stmt sol = function
     | TwoAddr (two_op, op, lvalue) -> string_of_two_op two_op ^ " " ^ string_of_operand sol op ^ ", " ^ sol lvalue
     | Mov (op, lvalue) -> "movq " ^ string_of_operand sol op ^ ", " ^ sol lvalue
+    | Idiv (op) -> "idivq " ^ string_of_operand sol op
+    | Cqto -> "cqto"
 
 let string_of_program program =
     program
     |> List.map ~f:(string_of_stmt string_of_stackslot_lvalue)
     |> String.concat ~sep:"\n"
 
-
 let lower_to_two_address ir =
     let lower_operand = function
         | Ir.IntVal i -> Imm i
         | Ir.Temp t -> LValue (Temp t) in
-    let lower_binop = function
+    let lower_standard_binop = function
         | Lexer.Plus -> Add
         | Lexer.Times -> Imul
         | Lexer.Minus -> Sub
-        | Lexer.Divide -> failwith "divide not supported" in
+        | Lexer.Divide -> failwith "ICE: not a standard binop" in
     let lower_stmt = function
         | Ir.Return op -> [Mov (lower_operand op, Reg RAX)]
         | Ir.Assign (t, op) -> [Mov (lower_operand op, Temp t)]
-        | Ir.BinOp (t, binop, op1, op2) -> 
+        | Ir.BinOp (t, binop, op1, op2) -> match binop with
+            | Lexer.Divide -> [
+                Mov (lower_operand op1, Reg RAX);
+                Cqto;
+                Idiv (lower_operand op2);
+                Mov (LValue (Reg RAX), Temp t)
+                ]
+            | Lexer.Plus | Lexer.Times | Lexer.Minus ->
                 (* TODO use commutativity to reduce copies *)
-                let op = lower_binop binop in
+                let op = lower_standard_binop binop in
                 [Mov (lower_operand op1, Temp t);
                  TwoAddr (op, lower_operand op2, Temp t)] in
     List.concat_map ~f:lower_stmt ir
@@ -139,10 +147,14 @@ let compute_live_ranges asm : (Temp.t stmt * LValueTemp.t list * LValueTemp.t li
         | LValue x -> [x] in
     let get_defines = function
         | TwoAddr(_, _, lvalue) -> [lvalue]
-        | Mov (_, lvalue) -> [lvalue] in
+        | Mov (_, lvalue) -> [lvalue]
+        | Idiv _ -> [Reg RAX; Reg RDX]
+        | Cqto -> [Reg RAX; Reg RDX] in
     let get_uses = function
         | TwoAddr(_, op, lvalue) -> lvalue :: operand_to_lvalue op 
-        | Mov (op, _) -> operand_to_lvalue op in
+        | Mov (op, _) -> operand_to_lvalue op
+        | Idiv op -> operand_to_lvalue op @ [Reg RAX; Reg RDX] 
+        | Cqto -> [Reg RAX] in
     let rec go acc = function
         | [] -> acc
         | stmt :: stmts -> 
@@ -198,13 +210,10 @@ let register_allocate (asm : Temp.t program) =
             | [] -> Temp (StackSlot.fresh (Some t))
             | _ -> fresh_reg None in
 
-    (* TODO: make this return that it can fail (if it was required to use the
-     * same physical register simultaneously) *)
-    let use_phys_reg reg =
+    let can_use_phys_reg reg =
         let free_regs' = List.filter !free_regs ~f:(fun x -> not (equal_reg x reg)) in
-        if List.length !free_regs = List.length free_regs' then 
-            failwith "was required to use same physical register simultaneously";
-        free_regs := free_regs' in
+        if List.length !free_regs = List.length free_regs' 
+        then false else (free_regs := free_regs'; true) in
 
     let free_lvalue lvalue = match lvalue with
         | Temp s -> StackSlot.retire s
@@ -223,8 +232,17 @@ let register_allocate (asm : Temp.t program) =
         | (stmt, creations, retires)  :: ranges ->
                 List.iter retires ~f:retire;
 
-                List.iter creations ~f:(fun new_reg -> match new_reg with
-                    | Reg r -> use_phys_reg r
+                let evictions = 
+                List.concat_map creations ~f:(fun new_reg -> match new_reg with
+                    | Reg r -> if can_use_phys_reg r then [] else
+                        (* TODO: BUG BUG BUG The bug here is that we choose the
+                         * replacement register after already having retired
+                         * some registers. This is not okay because the
+                         * replacement register needs to be free before this
+                         * instruction ever runs. *)
+                        (* replacement can't be something that just got retired...*)
+                        let replacement = fresh_lvalue None in
+                        [(r, replacement)]
                     | Temp t -> 
                             (* For moves, try to allocate the same register as
                              * the source register (coalescing). NOP moves will
@@ -236,7 +254,8 @@ let register_allocate (asm : Temp.t program) =
                                 | LValue (Temp t) -> Some (Hashtbl.find_exn register_mapping t)
                                 end
                             | _ -> None in
-                            Hashtbl.add_exn register_mapping ~key:t ~data:(fresh_lvalue src_reg));
+                            (Hashtbl.add_exn register_mapping ~key:t ~data:(fresh_lvalue src_reg));
+                            []) in
 
                 let map_lvalue = function
                     | Reg r -> Reg r
@@ -246,9 +265,21 @@ let register_allocate (asm : Temp.t program) =
                     | LValue l -> LValue (map_lvalue l) in
                 let map_stmt = function
                     | TwoAddr (two_op, o, l) -> TwoAddr (two_op, map_operand o, map_lvalue l)
-                    | Mov (o, l) -> Mov(map_operand o, map_lvalue l) in
+                    | Mov (o, l) -> Mov(map_operand o, map_lvalue l)
+                    | Idiv o -> Idiv (map_operand o)
+                    | Cqto -> Cqto in
 
-                go (map_stmt stmt :: acc) ranges
+                let stmt' = map_stmt stmt in
+                (* after mapping the statement, change the register mapping
+                 * so that things that were evicted will be referred to in
+                 * their new locations afterwards *)
+                let extra_moves = List.map ~f:(fun (reg, eviction) ->
+                    (* TODO: this is a little slow? *)
+                    (Hashtbl.map_inplace ~f:(fun x -> match x with 
+                        | Reg r -> if equal_reg reg r then eviction else x
+                        | Temp _ -> x) register_mapping;
+                    Mov (LValue (Reg reg), eviction))) evictions in
+                go (stmt' :: extra_moves @ acc) ranges
     in
     let reg_allocated_asm = go [] live_ranges_asm in
     let remove_double_memory_references asm = 
