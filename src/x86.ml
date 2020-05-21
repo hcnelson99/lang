@@ -32,6 +32,49 @@ type 'a stmt =
 
 type 'a program = 'a stmt list
 
+module type BAG = sig
+    type 'a t
+    val create : 'a list -> equal:('a -> 'a -> bool) -> 'a t
+    val grab_elt : 'a t -> 'a option -> 'a option
+    (* val has_elt : 'a t -> 'a -> bool *)
+    val take_elt : 'a t -> 'a -> bool
+    (* val take_elt_exn : 'a t -> 'a -> unit *)
+    val add_elt : 'a t -> 'a -> unit
+end
+
+module Bag : BAG = struct
+    (* TODO: O(n) datastructure. switch to hash set? *)
+    type 'a t = {
+            mutable elts : 'a list;
+            equal : 'a -> 'a -> bool
+        }
+    let create elts ~equal = {
+            elts;
+            equal
+        }
+
+    let has_elt {elts; equal} elt = List.mem elts elt ~equal
+
+    let grab_elt ({elts; equal} as bag) preference = match elts with
+        | []  -> None
+        | x::xs ->  match preference with
+            | None -> (bag.elts <- xs; Some x)
+            | Some pref -> if has_elt bag pref
+                then (bag.elts <- List.filter ~f:(fun x -> not (equal x pref)) elts; Some pref)
+                else (bag.elts <- xs; Some x)
+
+    let take_elt ({elts; equal} as bag) elt = 
+        let elts' = List.filter elts ~f:(fun x -> not (equal x elt)) in
+        if List.length elts' = List.length elts
+        then false
+        else (bag.elts <- elts'; true)
+
+    let add_elt bag elt = 
+        assert (not (has_elt bag elt));
+        bag.elts <- elt :: bag.elts
+
+end
+
 module type STACKSLOT = sig
     type t [@@deriving equal]
     val fresh : t option -> t
@@ -46,18 +89,14 @@ module StackSlot : STACKSLOT = struct
     type t = int [@@deriving equal]
 
     let next = ref 1
-    let free = ref []
+    let free = Bag.create [] ~equal:Int.equal
 
-    let fresh preference = match !free with
-        | []  -> let res = !next in (next := res + 1; res)
-        | x::xs ->  match preference with
-            | None -> (free := xs; x)
-            | Some pref -> if List.mem !free pref ~equal:Int.equal
-                then (free := List.filter ~f:(fun x -> not (Int.equal x pref)) !free; pref)
-                else (free := xs; x)
+    let fresh preference = match Bag.grab_elt free preference with
+        | None -> let res = !next in (next := res + 1; res)
+        | Some s ->  s
 
     let offset s = s * 8
-    let retire slot = (free := slot :: !free)
+    let retire slot = Bag.add_elt free slot
 
     (* TODO: could be better. two-pass solution? *)
     let max_slot () = !next * 8
@@ -173,9 +212,9 @@ let compute_live_ranges asm : (Temp.t stmt * LValueTemp.t list * LValueTemp.t li
                 );
                 (* add uses if they don't already exist *)
                 (* something retires here if we are adding it to the active list for the first time *)
-                let retires = List.concat_map uses ~f:(fun x -> 
-                    if Hash_set.mem active x then []
-                    else (Hash_set.add active x; [x])
+                let retires = List.filter_map uses ~f:(fun x -> 
+                    if Hash_set.mem active x then None
+                    else (Hash_set.add active x; Some x)
                 ) in
                 go ((stmt, creations, retires) :: acc) stmts in
     let res = go [] rev_asm in
@@ -188,38 +227,30 @@ let register_allocate (asm : Temp.t program) =
     let live_ranges_asm = compute_live_ranges asm in
     let register_mapping : (Temp.t, StackSlot.t lvalue) Hashtbl.t = Hashtbl.create (module Temp) in
 
-    let free_regs = ref allocatable_regs in
+    let free_regs = Bag.create allocatable_regs ~equal:equal_reg in
 
     (* For debugging: always spill *)
     (* let fresh_lvalue _ = Temp (StackSlot.fresh None) in *)
 
-    let fresh_reg (preference : reg option) = match !free_regs with
-            | [] -> Temp (StackSlot.fresh None)
-            | reg :: regs -> match preference with
-                | None -> (free_regs := regs; Reg reg)
-                | Some pref -> if List.mem !free_regs pref ~equal:equal_reg
-                    then (free_regs := List.filter ~f:(fun x -> not (equal_reg x pref)) !free_regs; Reg pref)
-                    else (free_regs := regs; Reg reg) in
+    let fresh_reg (preference : reg option) = match Bag.grab_elt free_regs preference with
+            | None -> Temp (StackSlot.fresh None)
+            | Some reg -> Reg reg in
 
     (* TODO: between fresh_lvalue and fresh_reg, all of this logic is quite
      * complicated and not great... *)
     let fresh_lvalue (preference : StackSlot.t lvalue option) = match preference with
         | None -> fresh_reg None
         | Some (Reg r) -> fresh_reg (Some r)
-        | Some (Temp t) -> match !free_regs with
-            | [] -> Temp (StackSlot.fresh (Some t))
-            | _ -> fresh_reg None in
+        | Some (Temp t) -> match Bag.grab_elt free_regs None with
+            | None -> Temp (StackSlot.fresh (Some t))
+            | Some r -> (Reg r) in
 
-    let can_use_phys_reg reg =
-        let free_regs' = List.filter !free_regs ~f:(fun x -> not (equal_reg x reg)) in
-        if List.length !free_regs = List.length free_regs' 
-        then false else (free_regs := free_regs'; true) in
+    let try_use_phys_reg reg =
+        Bag.take_elt free_regs reg in
 
     let free_lvalue lvalue = match lvalue with
         | Temp s -> StackSlot.retire s
-        | Reg reg ->
-            if List.mem !free_regs reg ~equal:equal_reg then failwith "reg was already free";
-            free_regs := reg :: !free_regs in
+        | Reg reg -> Bag.add_elt free_regs reg in
 
     let retire t =
         let lvalue = match t with
@@ -233,8 +264,8 @@ let register_allocate (asm : Temp.t program) =
                 List.iter retires ~f:retire;
 
                 let evictions = 
-                List.concat_map creations ~f:(fun new_reg -> match new_reg with
-                    | Reg r -> if can_use_phys_reg r then [] else
+                List.filter_map creations ~f:(fun new_reg -> match new_reg with
+                    | Reg r -> if try_use_phys_reg r then None else
                         (* TODO: BUG BUG BUG The bug here is that we choose the
                          * replacement register after already having retired
                          * some registers. This is not okay because the
@@ -242,7 +273,7 @@ let register_allocate (asm : Temp.t program) =
                          * instruction ever runs. *)
                         (* replacement can't be something that just got retired...*)
                         let replacement = fresh_lvalue None in
-                        [(r, replacement)]
+                        Some (r, replacement)
                     | Temp t -> 
                             (* For moves, try to allocate the same register as
                              * the source register (coalescing). NOP moves will
@@ -255,7 +286,7 @@ let register_allocate (asm : Temp.t program) =
                                 end
                             | _ -> None in
                             (Hashtbl.add_exn register_mapping ~key:t ~data:(fresh_lvalue src_reg));
-                            []) in
+                            None) in
 
                 let map_lvalue = function
                     | Reg r -> Reg r
