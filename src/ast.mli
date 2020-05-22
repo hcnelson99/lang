@@ -9,6 +9,7 @@ and exp =
 type mstmt = stmt Mark.t
 and stmt =
     | Return of mexp
+    | Declare of msym
     | Assign of msym * mexp
 
 type program = mstmt list

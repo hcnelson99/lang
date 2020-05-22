@@ -8,6 +8,7 @@ type token =
     | Semicolon
     | Equals
     | Return
+    | Var
     | Eof
 
 val string_of_op : op -> string

@@ -40,6 +40,7 @@ module type BAG = sig
     val take_elt : 'a t -> 'a -> bool
     (* val take_elt_exn : 'a t -> 'a -> unit *)
     val add_elt : 'a t -> 'a -> unit
+    val transfer_all : 'a t -> src:'a t -> unit
 end
 
 module Bag : BAG = struct
@@ -73,10 +74,14 @@ module Bag : BAG = struct
         assert (not (has_elt bag elt));
         bag.elts <- elt :: bag.elts
 
+    let transfer_all bag ~src = 
+        bag.elts <- src.elts @ bag.elts;
+        src.elts <- []
+       
 end
 
 module type STACKSLOT = sig
-    type t [@@deriving equal]
+    type t [@@deriving sexp, compare, hash, equal]
     val fresh : t option -> t
     val retire : t -> unit
 
@@ -86,7 +91,7 @@ module type STACKSLOT = sig
 end
 
 module StackSlot : STACKSLOT = struct
-    type t = int [@@deriving equal]
+    type t = int [@@deriving sexp, compare, hash, equal]
 
     let next = ref 1
     let free = Bag.create [] ~equal:Int.equal
@@ -172,14 +177,18 @@ let lower_to_two_address ir =
                  TwoAddr (op, lower_operand op2, Temp t)] in
     List.concat_map ~f:lower_stmt ir
 
-module LValueTemp = struct
+module StackSlotLValue = struct
+    type t = StackSlot.t lvalue [@@deriving sexp, compare, hash, equal]
+end
+
+module TempLValue = struct
     type t = Temp.t lvalue [@@deriving sexp, compare, hash, equal]
 end
 
 
 (* return (stmt * creations * retired) list *)
-let compute_live_ranges asm : (Temp.t stmt * LValueTemp.t list * LValueTemp.t list) list =
-    let active = Hash_set.create (module LValueTemp) in
+let compute_live_ranges asm : (Temp.t stmt * TempLValue.t list * TempLValue.t list) list =
+    let active = Hash_set.create (module TempLValue) in
     let rev_asm = List.rev asm in
     let operand_to_lvalue = function
         | Imm _ -> []
@@ -206,7 +215,7 @@ let compute_live_ranges asm : (Temp.t stmt * LValueTemp.t list * LValueTemp.t li
                 let (defines, uses) = (get_defines stmt, get_uses stmt) in
                 (* things that were defined on this line but not used are creations *)
                 let creations = List.filter defines 
-                    ~f:(fun x -> not (List.mem uses x ~equal:LValueTemp.equal)) in
+                    ~f:(fun x -> not (List.mem uses x ~equal:TempLValue.equal)) in
                 List.iter creations ~f:(fun x -> 
                     Hash_set.remove active x
                 );
@@ -245,36 +254,36 @@ let register_allocate (asm : Temp.t program) =
             | None -> Temp (StackSlot.fresh (Some t))
             | Some r -> (Reg r) in
 
-    let try_use_phys_reg reg =
-        Bag.take_elt free_regs reg in
-
-    let free_lvalue lvalue = match lvalue with
-        | Temp s -> StackSlot.retire s
-        | Reg reg -> Bag.add_elt free_regs reg in
-
-    let retire t =
-        let lvalue = match t with
-            | Reg r -> Reg r
-            | Temp t -> Hashtbl.find_exn register_mapping t in
-        free_lvalue lvalue in
+    let get_mapped_lvalue = function
+        | Reg r -> Reg r
+        | Temp t -> Hashtbl.find_exn register_mapping t in
 
     let rec go acc = function
         | [] -> List.rev acc
         | (stmt, creations, retires)  :: ranges ->
-                List.iter retires ~f:retire;
+                let retired_regs = Bag.create ~equal:equal_reg [] in
 
-                let evictions = 
-                List.filter_map creations ~f:(fun new_reg -> match new_reg with
-                    | Reg r -> if try_use_phys_reg r then None else
-                        (* TODO: BUG BUG BUG The bug here is that we choose the
-                         * replacement register after already having retired
-                         * some registers. This is not okay because the
-                         * replacement register needs to be free before this
-                         * instruction ever runs. *)
-                        (* replacement can't be something that just got retired...*)
-                        let replacement = fresh_lvalue None in
-                        Some (r, replacement)
-                    | Temp t -> 
+                List.map ~f:get_mapped_lvalue retires
+                |> List.iter ~f:(function
+                    | Temp s -> StackSlot.retire s
+                    | Reg r -> Bag.add_elt retired_regs r);
+
+                (* List.iter retires ~f:retire; *)
+
+                let reg_creations, temp_creations = List.partition_map ~f:(function 
+                    | Reg r -> `Fst r
+                    | Temp t -> `Snd t) creations in
+
+                let evictions = List.filter_map reg_creations ~f:(fun reg ->
+                    if Bag.take_elt retired_regs reg then None
+                    else if Bag.take_elt free_regs reg then None
+                    else let replacement = fresh_lvalue None in
+                    Some (reg, replacement)
+                ) in
+
+                Bag.transfer_all free_regs ~src:retired_regs;
+
+                List.iter temp_creations ~f:(fun t ->
                             (* For moves, try to allocate the same register as
                              * the source register (coalescing). NOP moves will
                              * be cleaned up by a later pass *)
@@ -285,8 +294,7 @@ let register_allocate (asm : Temp.t program) =
                                 | LValue (Temp t) -> Some (Hashtbl.find_exn register_mapping t)
                                 end
                             | _ -> None in
-                            (Hashtbl.add_exn register_mapping ~key:t ~data:(fresh_lvalue src_reg));
-                            None) in
+                            Hashtbl.add_exn register_mapping ~key:t ~data:(fresh_lvalue src_reg));
 
                 let map_lvalue = function
                     | Reg r -> Reg r
@@ -312,7 +320,9 @@ let register_allocate (asm : Temp.t program) =
                     Mov (LValue (Reg reg), eviction))) evictions in
                 go (stmt' :: extra_moves @ acc) ranges
     in
+
     let reg_allocated_asm = go [] live_ranges_asm in
+
     let remove_double_memory_references asm = 
         let modify_stmt stmt = match stmt with
             | Mov (LValue (Temp src), Temp dst) ->
@@ -330,8 +340,8 @@ let register_allocate (asm : Temp.t program) =
                     ]
             | _ -> [stmt]
             in
-        List.concat_map ~f:modify_stmt asm
-        in
+        List.concat_map ~f:modify_stmt asm in
+
     remove_double_memory_references reg_allocated_asm
 
 

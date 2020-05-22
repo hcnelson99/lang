@@ -10,6 +10,7 @@ type token =
     | Semicolon
     | Equals
     | Return
+    | Var
     | Eof
 
 let string_of_op = function
@@ -27,6 +28,7 @@ let string_of_token = function
     | Return -> "return"
     | Semicolon -> ";"
     | Equals -> "="
+    | Var -> "var"
     | Eof -> "EOF"
 
 type lexer = 
@@ -112,6 +114,7 @@ let eat_symbol lexer =
     let symbol = eat_token is_symbol_char lexer in
     Mark.map ~f:(fun s -> match s with
     | "return" -> Return
+    | "var" -> Var
     | _ -> Symbol (Symbol.create s)) symbol
 
 let inc (r, c) = (r, c + 1)

@@ -9,6 +9,7 @@ and exp =
 type mstmt = stmt Mark.t
 and stmt =
     | Return of mexp
+    | Declare of msym
     | Assign of msym * mexp
 
 type program = mstmt list
@@ -28,4 +29,5 @@ let rec string_of_exp = function
 
 let string_of_stmt = function
     | Return e -> "return " ^ string_of_exp (Mark.obj e) ^ ";"
+    | Declare s -> "var " ^ Symbol.str (Mark.obj s) ^ ";"
     | Assign (l, e) -> Symbol.str (Mark.obj l) ^ " = " ^ string_of_exp (Mark.obj e) ^ ";"
