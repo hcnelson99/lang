@@ -10,12 +10,18 @@ let minimum_precedence = 1
 
 (* precedence * associativity *)
 let op_info = function
+    (* | L.Boolean_or -> (1, Left) *)
+    (* | L.Boolean_and -> (2, Left) *)
+    | L.Equal | L.Not_eq-> (3, Left)
+    | L.Greater | L.Greater_eq | L.Less | L.Less_eq -> (4, Left)
     | L.Plus | L.Minus -> (5, Left)
     | L.Times | L.Divide -> (6, Left)
 
 let rec parse_atom lexer = 
     let tok = L.pop lexer in
     match Mark.obj tok with
+    | L.True -> Mark.with_mark tok (BoolVal true)
+    | L.False -> Mark.with_mark tok (BoolVal false)
     | L.IntVal x -> Mark.with_mark tok (IntVal x)
     | L.Symbol s -> Mark.with_mark tok (Variable s)
     | L.LParen ->
@@ -64,7 +70,7 @@ let parse_stmt lexer =
                 | _ -> Lexer.error lexer lvalue_tok "Expected lvalue") in
             let eq = L.peek lexer in
             begin match Mark.obj eq with
-            | L.Equals -> 
+            | L.Assign -> 
                     L.drop lexer;
                     let e = parse_exp lexer in
                     [Mark.with_range tok e (Declare msym);
@@ -78,7 +84,7 @@ let parse_stmt lexer =
             let msym = Mark.with_mark tok s in
             let eq = L.peek lexer in
             begin match Mark.obj eq with
-            | L.Equals -> 
+            | L.Assign -> 
                     L.drop lexer;
                     let e = parse_exp lexer in
                     [Mark.with_range msym e (Assign (msym, e))]

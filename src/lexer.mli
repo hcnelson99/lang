@@ -1,19 +1,28 @@
-type op = Plus | Times | Divide | Minus
+type op = 
+    | Plus | Times | Divide | Minus | Greater | Less | Equal | Greater_eq
+    | Less_eq | Not_eq 
+    (* | Boolean_and | Boolean_or *)
+
 type token =
     | IntVal of int
     | Symbol of Symbol.t
     | Operator of op
     | LParen
     | RParen
+    | LBracket
+    | RBracket
     | Semicolon
-    | Equals
+    | Assign
     | Return
+    | True
+    | False
+    | While
+    | If
     | Var
     | Eof
 
 val string_of_op : op -> string
 val string_of_token : token -> string
-
 
 type lexer
 

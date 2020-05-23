@@ -41,6 +41,9 @@ let lower program =
     let assign s t = Hashtbl.set symbols ~key:s ~data:t in
     let rec lower_exp (dst : Temp.t) = function
         | A.IntVal i -> [Assign(dst, IntVal i)]
+        | A.BoolVal b -> 
+                let i = if b then 1 else 0 in
+                [Assign(dst, IntVal i)]
         | A.BinOp (op, e1, e2) -> 
                 let lhs = Temp.create () in
                 let rhs = Temp.create () in

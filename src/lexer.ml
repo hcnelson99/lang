@@ -1,15 +1,25 @@
 open Core
 
-type op = Plus | Times | Divide | Minus
+type op = 
+    | Plus | Times | Divide | Minus | Greater | Less | Equal | Greater_eq
+    | Less_eq | Not_eq 
+    (* | Boolean_and | Boolean_or *)
+
 type token =
     | IntVal of int
     | Symbol of Symbol.t
     | Operator of op
     | LParen
     | RParen
+    | LBracket
+    | RBracket
     | Semicolon
-    | Equals
+    | Assign
     | Return
+    | True
+    | False
+    | While
+    | If
     | Var
     | Eof
 
@@ -18,17 +28,31 @@ let string_of_op = function
     | Times -> "*"
     | Divide -> "/"
     | Minus -> "-"
+    | Greater -> ">"
+    | Less -> "<"
+    | Greater_eq -> ">="
+    | Less_eq -> "<="
+    | Not_eq -> "!="
+    | Equal -> "=="
+    (* | Boolean_and -> "&&" *)
+    (* | Boolean_or -> "||" *)
 
 let string_of_token = function
     | IntVal x -> "Int(" ^ Int.to_string x ^ ")" 
     | Symbol s -> "Symbol(" ^ Symbol.str s ^ ")" 
     | Operator op -> string_of_op op
+    | LBracket -> "{"
+    | RBracket -> "}"
     | LParen -> "("
     | RParen -> ")"
     | Return -> "return"
     | Semicolon -> ";"
-    | Equals -> "="
+    | Assign -> "="
     | Var -> "var"
+    | While -> "while"
+    | True -> "true"
+    | False -> "false"
+    | If -> "if"
     | Eof -> "EOF"
 
 type lexer = 
@@ -115,7 +139,28 @@ let eat_symbol lexer =
     Mark.map ~f:(fun s -> match s with
     | "return" -> Return
     | "var" -> Var
+    | "true" -> True
+    | "false" -> False
     | _ -> Symbol (Symbol.create s)) symbol
+
+let is_operator_char = String.mem "+-*/%=&|<>"
+let eat_operator lexer =
+    let operator = eat_token is_operator_char lexer in
+    Mark.map ~f:(function
+        | "+" -> Operator Plus
+        | "*" -> Operator Times
+        | "/" -> Operator Divide
+        | "-" -> Operator Minus
+        | ">" -> Operator Greater
+        | "<" -> Operator Less
+        | ">=" -> Operator Greater_eq
+        | "<=" -> Operator Less_eq
+        | "!=" -> Operator Not_eq
+        | "==" -> Operator Equal
+        (* | "&&" -> Operator Boolean_and *)
+        (* | "||" -> Operator Boolean_or *)
+        | "=" -> Assign
+        | _ -> failwith "invalid operator") operator
 
 let inc (r, c) = (r, c + 1)
 
@@ -127,17 +172,15 @@ let rec compute_tok lexer =
         if Char.is_whitespace c then (advance_char lexer; compute_tok lexer)
         else if Char.is_digit c then eat_number lexer
         else if is_symbol_start c then eat_symbol lexer
+        else if is_operator_char c then eat_operator lexer
         else 
             let t = match c with
-                | '+' -> Operator Plus
-                | '-' -> Operator Minus
-                | '*' -> Operator Times
-                | '/' -> Operator Divide
                 | '(' -> LParen
                 | ')' -> RParen
+                | '{' -> LBracket
+                | '}' -> RBracket
                 | ';' -> Semicolon
-                | '=' -> Equals
-                | _ -> failwith "lexer error" in
+                | _ -> failwith "illegal character" in
             let pos = lexer.pos in
             advance_char lexer;
             Mark.create t pos (inc pos)

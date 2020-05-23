@@ -5,10 +5,14 @@ and exp =
     | BinOp of Lexer.op * mexp * mexp
     | Variable of Symbol.t
     | IntVal of int
+    | BoolVal of bool
 
 type mstmt = stmt Mark.t
 and stmt =
     | Return of mexp
+    (* | Block of mstmt list *)
+    (* | While of mexp * mstmt *)
+    (* | If of mexp * mstmt *)
     | Declare of msym
     | Assign of msym * mexp
 
