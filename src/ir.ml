@@ -51,8 +51,9 @@ let lower program =
                 lower_exp rhs (Mark.obj e2) @
                 [BinOp (dst, op, Temp lhs, Temp rhs) ]
         | A.Variable s -> [Assign (dst, Temp (lookup s))] in
-    let lower_stmt stmt = match Mark.obj stmt with
-        | A.Declare _ -> []
+    let rec lower_stmt stmt = match Mark.obj stmt with
+        | A.Declare (_, None) -> []
+        | A.Declare (l, Some e) -> lower_stmt (Mark.with_range l e (A.Assign (l, e)))
         | A.Return e ->
                 let t = Temp.create () in
                 lower_exp t (Mark.obj e) @

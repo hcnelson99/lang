@@ -17,12 +17,9 @@ let compile_and_exec fname =
         Typecheck.typecheck lexer ast;
         ast
     with Lexer.Compiler_error -> Unix.exit_immediately 1) in
-    (* List.iter ~f:print_stmt ast; *)
     let ir = Ir.lower ast in
-    (* print_endline ""; *)
     print_endline (Ir.string_of_program ir);
     let asm = Codegen.emit ir in
-    (* print_endline asm *)
     Out_channel.with_file "out.s" ~f:(fun out -> Out_channel.output_string out asm);
     system "gcc -c out.s -o out.o";
     system "gcc out.o runtime.c -o out";

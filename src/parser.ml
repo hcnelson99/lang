@@ -57,12 +57,12 @@ and parse_exp lexer =
 (* doesnt eat the semicolon *)
 (* TODO: do we want this to return a list? var x = e1 elaboration should maybe
  * be its own thing? having it here makes the parse logic a little wonky *)
-let parse_stmt lexer = 
+let rec parse_stmt lexer = 
     let tok = L.pop lexer in
     match Mark.obj tok with
     | L.Return -> 
             let e = parse_exp lexer in
-            [Mark.with_range tok e (Return e)]
+            Mark.with_range tok e (Return e)
     | L.Var ->
             let lvalue_tok = L.pop lexer in
             let msym = Mark.map lvalue_tok ~f:(function
@@ -73,11 +73,10 @@ let parse_stmt lexer =
             | L.Assign -> 
                     L.drop lexer;
                     let e = parse_exp lexer in
-                    [Mark.with_range tok e (Declare msym);
-                     Mark.with_range lvalue_tok e (Assign (msym, e))]
+                    Mark.with_range tok e (Declare (msym, Some e))
             | L.Semicolon ->
                     (* don't eat semicolon *)
-                    [Mark.with_range tok lvalue_tok (Declare msym)]
+                    Mark.with_range tok lvalue_tok (Declare (msym, None))
             | _ ->  Lexer.error lexer eq "Expected assignment (=)";
             end
     | L.Symbol s ->
@@ -87,9 +86,39 @@ let parse_stmt lexer =
             | L.Assign -> 
                     L.drop lexer;
                     let e = parse_exp lexer in
-                    [Mark.with_range msym e (Assign (msym, e))]
+                    Mark.with_range msym e (Assign (msym, e))
             | _ ->  Lexer.error lexer eq "Expected assignment (=)"
             end
+    | L.LBracket ->
+            let rec go acc = match Mark.obj (L.peek lexer) with
+                | L.RBracket -> (L.pop lexer, (List.rev acc))
+                | _ -> 
+                    (* TODO: copy paste from below *)
+                    let stmt = parse_stmt lexer in
+                    let stmt_end = L.pop lexer in
+                    begin match Mark.obj stmt_end with
+                    | Semicolon -> go (stmt :: acc)
+                    | _ -> Lexer.error lexer stmt 
+                            "Expected semicolon at end of statement"
+                    end in
+            let (end_brace, res) = go [] in
+            Mark.with_range tok end_brace (Block res)
+    | L.While ->
+            let l_paren_tok = L.pop lexer in
+            begin match (Mark.obj l_paren_tok) with
+                | L.LParen -> ()
+                | _ -> Lexer.error lexer l_paren_tok "expected ( after while" end;
+            let cond = parse_exp lexer in
+            let stmt = parse_stmt lexer in
+            Mark.with_range tok stmt (While (cond, stmt))
+    | L.If ->
+            let l_paren_tok = L.pop lexer in
+            begin match (Mark.obj l_paren_tok) with
+                | L.LParen -> ()
+                | _ -> Lexer.error lexer l_paren_tok "expected ( after while" end;
+            let cond = parse_exp lexer in
+            let stmt = parse_stmt lexer in
+            Mark.with_range tok stmt (If (cond, stmt))
     | _ -> Lexer.error lexer tok "Unexpected token to begin statement"
 
 let parse lexer =
@@ -98,11 +127,11 @@ let parse lexer =
         match Mark.obj tok with
         | Eof -> List.rev acc
         | _ -> 
-            let stmts = parse_stmt lexer in
+            let stmt = parse_stmt lexer in
             let stmt_end = L.pop lexer in
             begin match Mark.obj stmt_end with
-            | Semicolon -> parse_program (List.rev stmts @ acc)
-            | _ -> Lexer.error lexer (List.last_exn stmts) 
+            | Semicolon -> parse_program (stmt :: acc)
+            | _ -> Lexer.error lexer stmt 
                     "Expected semicolon at end of statement"
             end in
     parse_program []

@@ -57,9 +57,14 @@ let typecheck lexer (program : Ast.program) =
     let rec go = function
         | [] -> ()
         | stmt :: stmts -> match Mark.obj stmt with
-            | Declare l ->
+            | Declare (l, init) ->
                     add_defn l;
-                    go stmts
+                    begin match init with
+                    | None -> go stmts
+                    | Some e -> 
+                            let assign = Mark.with_range l e (Assign (l, e)) in
+                            go (assign :: stmts)
+                    end
             | Assign (lhs, e) ->
                     let rhs_ty = typecheck_exp e in
                     begin match Hashtbl.find vars (Mark.obj lhs) with

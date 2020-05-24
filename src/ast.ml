@@ -12,10 +12,10 @@ and exp =
 type mstmt = stmt Mark.t
 and stmt =
     | Return of mexp
-    (* | Block of mstmt list *)
-    (* | While of mexp * mstmt *)
-    (* | If of mexp * mstmt *)
-    | Declare of msym
+    | Block of mstmt list
+    | While of mexp * mstmt
+    | If of mexp * mstmt
+    | Declare of msym * mexp option
     | Assign of msym * mexp
 
 type program = mstmt list
@@ -30,10 +30,14 @@ let rec string_of_exp = function
             let rhs_str = string_of_exp (Mark.obj rhs) in
             "(" ^ lhs_str ^ op_str ^ rhs_str ^ ")"
 
-let string_of_stmt = function
+let rec string_of_stmt = function
     | Return e -> "return " ^ string_of_exp (Mark.obj e) ^ ";"
-    | Declare s -> "var " ^ Symbol.str (Mark.obj s) ^ ";"
+    | Declare (s, init) -> 
+            begin match init with
+            | Some i -> "var " ^ Symbol.str (Mark.obj s) ^ " = " ^ string_of_exp (Mark.obj i) ^ ";"
+            | None-> "var " ^ Symbol.str (Mark.obj s) ^ ";"
+            end
     | Assign (l, e) -> Symbol.str (Mark.obj l) ^ " = " ^ string_of_exp (Mark.obj e) ^ ";"
-    (* | Block stmts -> "{" ^ (List.map ~f:(fun x -> string_of_stmt @@ Mark.obj x) stmts |> String.concat ~sep:";\n") ^ "}" *)
-    (* | While (cond, body) -> "while(" ^ string_of_exp (Mark.obj cond) ^ ")\n" ^ string_of_stmt (Mark.obj body) *)
-    (* | If (cond, body) -> "if(" ^ string_of_exp (Mark.obj cond) ^ ")\n" ^ string_of_stmt (Mark.obj body) *)
+    | Block stmts -> "{" ^ (List.map ~f:(fun x -> string_of_stmt @@ Mark.obj x) stmts |> String.concat ~sep:";\n") ^ "}"
+    | While (cond, body) -> "while(" ^ string_of_exp (Mark.obj cond) ^ ")\n" ^ string_of_stmt (Mark.obj body)
+    | If (cond, body) -> "if(" ^ string_of_exp (Mark.obj cond) ^ ")\n" ^ string_of_stmt (Mark.obj body)
