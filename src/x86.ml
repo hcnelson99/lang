@@ -126,6 +126,22 @@ let string_of_reg = function
     | R14 -> "%r14"
     | R15 -> "%r15"
 
+let string_of_reg_low = function
+    | RAX -> "%al"
+    | RBX -> "%bl"
+    | RCX -> "%cl"
+    | RDX -> "%dl"
+    | RSI -> "%sil"
+    | RDI -> "%dil"
+    | R8  -> "%r8b"
+    | R9  -> "%r9b"
+    | R10 -> "%r10b"
+    | R11 -> "%r11b"
+    | R12 -> "%r12b"
+    | R13 -> "%r13b"
+    | R14 -> "%r14b"
+    | R15 -> "%r15b"
+
 let string_of_temp_lvalue = function
     | Reg r -> string_of_reg r
     | Temp s -> Temp.string_of_t s
@@ -150,7 +166,10 @@ let string_of_stmt sol = function
     | Setcc (cond, lvalue) -> 
             let cc = match cond with
             | Greater -> "g" in
-            "set" ^ cc ^ " " ^ sol lvalue
+            let reg_string = match lvalue with
+            | Reg r -> string_of_reg_low r
+            | Temp _ -> sol lvalue in
+            "set" ^ cc ^ " " ^ reg_string
     | Idiv (op) -> "idivq " ^ string_of_operand sol op
     | Cqto -> "cqto"
 
@@ -287,8 +306,6 @@ let register_allocate (asm : Temp.t program) =
                     | Temp s -> StackSlot.retire s
                     | Reg r -> Bag.add_elt retired_regs r);
 
-                (* List.iter retires ~f:retire; *)
-
                 let reg_creations, temp_creations = List.partition_map ~f:(function 
                     | Reg r -> `Fst r
                     | Temp t -> `Snd t) creations in
@@ -313,7 +330,7 @@ let register_allocate (asm : Temp.t program) =
                                 | LValue (Temp t) -> Some (Hashtbl.find_exn register_mapping t)
                                 end
                             | _ -> None in
-                            Hashtbl.add_exn register_mapping ~key:t ~data:(fresh_lvalue src_reg));
+                            Hashtbl.set register_mapping ~key:t ~data:(fresh_lvalue src_reg));
 
                 let map_lvalue = function
                     | Reg r -> Reg r
