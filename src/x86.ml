@@ -22,8 +22,8 @@ type 'a operand =
     | Imm of int
     | LValue of 'a lvalue
 
-type two_op = Imul | Add | Sub
-type cond = Greater | Less | Equal
+type two_op = Imul | Add | Sub | And | Or
+type cond = Greater | Less | Equal | Greater_eq | Less_eq | Not_eq
 
 type 'a stmt =
     | TwoAddr of two_op * 'a operand * 'a lvalue
@@ -158,6 +158,8 @@ let string_of_two_op = function
     | Imul -> "imulq"
     | Add -> "addq"
     | Sub -> "subq"
+    | And -> "andq"
+    | Or -> "orq"
 
 let string_of_stmt sol = function
     | TwoAddr (two_op, op, lvalue) -> string_of_two_op two_op ^ " " ^ string_of_operand sol op ^ ", " ^ sol lvalue
@@ -165,7 +167,12 @@ let string_of_stmt sol = function
     | Cmp (op, lvalue) -> "cmpq " ^ string_of_operand sol op ^ ", " ^ sol lvalue
     | Setcc (cond, lvalue) -> 
             let cc = match cond with
-            | Greater -> "g" in
+            | Greater -> "g"
+            | Less -> "l"
+            | Equal -> "e"
+            | Greater_eq -> "ge"
+            | Less_eq -> "le"
+            | Not_eq -> "ne" in
             let reg_string = match lvalue with
             | Reg r -> string_of_reg_low r
             | Temp _ -> sol lvalue in
@@ -182,32 +189,39 @@ let lower_to_two_address ir =
     let lower_operand = function
         | Ir.IntVal i -> Imm i
         | Ir.Temp t -> LValue (Temp t) in
-    let lower_standard_binop = function
-        | Lexer.Plus -> Add
-        | Lexer.Times -> Imul
-        | Lexer.Minus -> Sub
-        | _ -> failwith "ICE: not a standard binop" in
+    let lower_standard_binop instr t op1 op2 = 
+        (* TODO use commutativity to reduce copies *)
+        [Mov (lower_operand op1, Temp t);
+            TwoAddr (instr, lower_operand op2, Temp t)] in
+    let lower_comparison comp t op1 op2 = 
+            [
+                Mov (lower_operand op1, Temp t);
+                Cmp (lower_operand op2, Temp t);
+                Mov (Imm 0, Temp t);
+                Setcc (comp, Temp t);
+                ]
+        in
     let lower_stmt = function
         | Ir.Return op -> [Mov (lower_operand op, Reg RAX)]
         | Ir.Assign (t, op) -> [Mov (lower_operand op, Temp t)]
         | Ir.BinOp (t, binop, op1, op2) -> match binop with
-            | Lexer.Greater -> [
-                Mov (lower_operand op1, Temp t);
-                Cmp (lower_operand op2, Temp t);
-                Mov (Imm 0, Temp t);
-                Setcc (Greater, Temp t);
-                ]
+            | Lexer.Greater -> lower_comparison Greater t op1 op2
+            | Lexer.Less -> lower_comparison Less t op1 op2
+            | Lexer.Equal -> lower_comparison Equal t op1 op2
+            | Lexer.Greater_eq -> lower_comparison Greater_eq t op1 op2
+            | Lexer.Less_eq -> lower_comparison Less_eq t op1 op2
+            | Lexer.Not_eq -> lower_comparison Not_eq t op1 op2
             | Lexer.Divide -> [
                 Mov (lower_operand op1, Reg RAX);
                 Cqto;
                 Idiv (lower_operand op2);
                 Mov (LValue (Reg RAX), Temp t)
                 ]
-            | Lexer.Plus | Lexer.Times | Lexer.Minus ->
-                (* TODO use commutativity to reduce copies *)
-                let op = lower_standard_binop binop in
-                [Mov (lower_operand op1, Temp t);
-                 TwoAddr (op, lower_operand op2, Temp t)] in
+            | Lexer.Plus -> lower_standard_binop Add t op1 op2
+            | Lexer.Minus -> lower_standard_binop Sub t op1 op2
+            | Lexer.Times -> lower_standard_binop Imul t op1 op2
+            | Lexer.Boolean_and -> lower_standard_binop And t op1 op2
+            | Lexer.Boolean_or -> lower_standard_binop Or t op1 op2 in
     List.concat_map ~f:lower_stmt ir
 
 module StackSlotLValue = struct

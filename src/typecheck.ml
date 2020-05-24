@@ -39,7 +39,7 @@ let typecheck lexer (program : Ast.program) =
                 let e_ty = match binop with
                     | Plus | Times | Divide | Minus | Greater | Greater_eq
                     | Less | Less_eq -> Some Int
-                    (* | Boolean_and | Boolean_or -> Some Bool  *)
+                    | Boolean_and | Boolean_or -> Some Bool 
                     | Equal | Not_eq -> None in
                 let ty1 = typecheck_exp e1 in
                 let ty2 = typecheck_exp e2 in

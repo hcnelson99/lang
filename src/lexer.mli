@@ -1,7 +1,7 @@
 type op = 
     | Plus | Times | Divide | Minus | Greater | Less | Equal | Greater_eq
     | Less_eq | Not_eq 
-    (* | Boolean_and | Boolean_or *)
+    | Boolean_and | Boolean_or
 
 type token =
     | IntVal of int

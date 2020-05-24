@@ -3,7 +3,7 @@ open Core
 type op = 
     | Plus | Times | Divide | Minus | Greater | Less | Equal | Greater_eq
     | Less_eq | Not_eq 
-    (* | Boolean_and | Boolean_or *)
+    | Boolean_and | Boolean_or
 
 type token =
     | IntVal of int
@@ -34,8 +34,8 @@ let string_of_op = function
     | Less_eq -> "<="
     | Not_eq -> "!="
     | Equal -> "=="
-    (* | Boolean_and -> "&&" *)
-    (* | Boolean_or -> "||" *)
+    | Boolean_and -> "&&"
+    | Boolean_or -> "||"
 
 let string_of_token = function
     | IntVal x -> "Int(" ^ Int.to_string x ^ ")" 
@@ -157,8 +157,8 @@ let eat_operator lexer =
         | "<=" -> Operator Less_eq
         | "!=" -> Operator Not_eq
         | "==" -> Operator Equal
-        (* | "&&" -> Operator Boolean_and *)
-        (* | "||" -> Operator Boolean_or *)
+        | "&&" -> Operator Boolean_and
+        | "||" -> Operator Boolean_or
         | "=" -> Assign
         | _ -> failwith "invalid operator") operator
 

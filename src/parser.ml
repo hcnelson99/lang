@@ -10,8 +10,8 @@ let minimum_precedence = 1
 
 (* precedence * associativity *)
 let op_info = function
-    (* | L.Boolean_or -> (1, Left) *)
-    (* | L.Boolean_and -> (2, Left) *)
+    | L.Boolean_or -> (1, Left)
+    | L.Boolean_and -> (2, Left)
     | L.Equal | L.Not_eq-> (3, Left)
     | L.Greater | L.Greater_eq | L.Less | L.Less_eq -> (4, Left)
     | L.Plus | L.Minus -> (5, Left)
