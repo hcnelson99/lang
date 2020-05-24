@@ -3,7 +3,7 @@ open Core
 type op = 
     | Plus | Times | Divide | Minus | Greater | Less | Equal | Greater_eq
     | Less_eq | Not_eq 
-    | Boolean_and | Boolean_or
+    | Boolean_and | Boolean_or [@@deriving equal]
 
 type token =
     | IntVal of int
@@ -21,7 +21,7 @@ type token =
     | While
     | If
     | Var
-    | Eof
+    | Eof [@@deriving equal]
 
 let string_of_op = function
     | Plus -> "+"
@@ -155,6 +155,8 @@ let eat_symbol lexer =
     | "var" -> Var
     | "true" -> True
     | "false" -> False
+    | "while" -> While
+    | "if" -> If
     | _ -> Symbol (Symbol.create s)) symbol
 
 let is_operator_char = String.mem "!+-*/%=&|<>"

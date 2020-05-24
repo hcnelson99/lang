@@ -17,6 +17,12 @@ let op_info = function
     | L.Plus | L.Minus -> (5, Left)
     | L.Times | L.Divide -> (6, Left)
 
+let expect_tok lexer expected_tok msg =
+        let tok = L.pop lexer in
+        if L.equal_token (Mark.obj tok) expected_tok then () 
+        else Lexer.error lexer tok msg
+
+
 let rec parse_atom lexer = 
     let tok = L.pop lexer in
     match Mark.obj tok with
@@ -81,14 +87,9 @@ let rec parse_stmt lexer =
             end
     | L.Symbol s ->
             let msym = Mark.with_mark tok s in
-            let eq = L.peek lexer in
-            begin match Mark.obj eq with
-            | L.Assign -> 
-                    L.drop lexer;
-                    let e = parse_exp lexer in
-                    Mark.with_range msym e (Assign (msym, e))
-            | _ ->  Lexer.error lexer eq "Expected assignment (=)"
-            end
+            expect_tok lexer L.Assign "expected assignment (=)";
+            let e = parse_exp lexer in
+            Mark.with_range msym e (Assign (msym, e))
     | L.LBracket ->
             let rec go acc = match Mark.obj (L.peek lexer) with
                 | L.RBracket -> (L.pop lexer, (List.rev acc))
@@ -104,19 +105,15 @@ let rec parse_stmt lexer =
             let (end_brace, res) = go [] in
             Mark.with_range tok end_brace (Block res)
     | L.While ->
-            let l_paren_tok = L.pop lexer in
-            begin match (Mark.obj l_paren_tok) with
-                | L.LParen -> ()
-                | _ -> Lexer.error lexer l_paren_tok "expected ( after while" end;
+            expect_tok lexer L.LParen "expected ( after while";
             let cond = parse_exp lexer in
+            expect_tok lexer L.RParen "expected ) after while condition";
             let stmt = parse_stmt lexer in
             Mark.with_range tok stmt (While (cond, stmt))
     | L.If ->
-            let l_paren_tok = L.pop lexer in
-            begin match (Mark.obj l_paren_tok) with
-                | L.LParen -> ()
-                | _ -> Lexer.error lexer l_paren_tok "expected ( after while" end;
+            expect_tok lexer L.LParen "expected ( after if";
             let cond = parse_exp lexer in
+            expect_tok lexer L.RParen "expected ) after if condition";
             let stmt = parse_stmt lexer in
             Mark.with_range tok stmt (If (cond, stmt))
     | _ -> Lexer.error lexer tok "Unexpected token to begin statement"

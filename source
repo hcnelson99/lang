@@ -1,3 +1,11 @@
-var x = true;
-var y = true;
-return x || y;
+var a = 0;
+var b = 1;
+var i = 0;
+while (i < 10) {
+    a = a + b;
+    var tmp = b;
+    b = a;
+    a = tmp;
+    i = i + 1;
+};
+return b;

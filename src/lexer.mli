@@ -1,7 +1,7 @@
 type op = 
     | Plus | Times | Divide | Minus | Greater | Less | Equal | Greater_eq
     | Less_eq | Not_eq 
-    | Boolean_and | Boolean_or
+    | Boolean_and | Boolean_or [@@deriving equal]
 
 type token =
     | IntVal of int
@@ -19,7 +19,7 @@ type token =
     | While
     | If
     | Var
-    | Eof
+    | Eof [@@deriving equal]
 
 val string_of_op : op -> string
 val string_of_token : token -> string
