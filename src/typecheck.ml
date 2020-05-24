@@ -36,22 +36,21 @@ let typecheck lexer (program : Ast.program) =
         | Variable s -> check_use (Mark.with_mark exp s)
         | BinOp (binop, e1, e2) -> 
                 let open Lexer in
-                let e_ty = match binop with
-                    | Plus | Times | Divide | Minus | Greater | Greater_eq
-                    | Less | Less_eq -> Some Int
-                    | Boolean_and | Boolean_or -> Some Bool 
-                    | Equal | Not_eq -> None in
+                let ret_ty, op_ty = match binop with
+                    | Plus | Times | Divide | Minus -> (Int, Some Int)
+                    | Greater | Greater_eq | Less | Less_eq -> (Bool, Some Int)
+                    | Boolean_and | Boolean_or -> (Bool, Some Bool )
+                    | Equal | Not_eq -> (Bool, None) in
                 let ty1 = typecheck_exp e1 in
                 let ty2 = typecheck_exp e2 in
-                begin match e_ty with
-                | Some ty -> 
-                        expect_type ty ty1 e1;
-                        expect_type ty ty2 e2;
-                        ty
+                begin match op_ty with
+                | Some op_ty -> 
+                        expect_type op_ty ty1 e1;
+                        expect_type op_ty ty2 e2;
                 | None -> 
-                        expect_eq_able_types ty1 ty2 exp;
-                        Bool
-                end
+                        expect_eq_able_types ty1 ty2 exp
+                end;
+                ret_ty
         | IntVal _ -> Int
         | BoolVal _ -> Bool in
 

@@ -90,6 +90,22 @@ let display_mark lexer m =
         line ^ "\n" ^ underline
     else Printf.sprintf "%d:%d - %d:%d" r1 c1 r2 c2
 
+let inc (r, c) = (r, c + 1)
+
+exception Compiler_error
+
+let error lexer mark msg =
+    let fname = fname lexer in
+    let (r1, c1) = Mark.start mark in
+    let (r2, c2) = Mark.stop mark in
+    Printf.printf "%s:%d:%d-%d:%d: error: %s\n" fname r1 c1 r2 c2 msg;
+    print_endline (display_mark lexer mark);
+    raise Compiler_error
+
+let lexer_error lexer msg =
+    let mark = Mark.create () lexer.pos (inc lexer.pos) in
+    error lexer mark msg
+
 let peek_char lexer =
     if lexer.idx >= lexer.length then None else
     Some lexer.file.[lexer.idx]
@@ -123,13 +139,11 @@ let eat_token is_valid_char lexer =
     let str = String.sub ~pos:start_idx ~len:(stop_idx - start_idx) lexer.file in
     Mark.create str start_pos stop_pos
 
-(* TODO: add lexer error messages *)
-
 let eat_number lexer = 
     let token = eat_token Char.is_digit lexer in
     (match peek_char lexer with
     | None -> ()
-    | Some c -> if Char.is_alpha c then failwith "Number cannot end with letter");
+    | Some c -> if Char.is_alpha c then lexer_error lexer "number cannot end with letter");
     Mark.map ~f:(fun x -> IntVal (Int.of_string x)) token
 
 let is_symbol_start c = Char.is_alpha c || Char.equal c '_'
@@ -143,7 +157,7 @@ let eat_symbol lexer =
     | "false" -> False
     | _ -> Symbol (Symbol.create s)) symbol
 
-let is_operator_char = String.mem "+-*/%=&|<>"
+let is_operator_char = String.mem "!+-*/%=&|<>"
 let eat_operator lexer =
     let operator = eat_token is_operator_char lexer in
     Mark.map ~f:(function
@@ -160,9 +174,7 @@ let eat_operator lexer =
         | "&&" -> Operator Boolean_and
         | "||" -> Operator Boolean_or
         | "=" -> Assign
-        | _ -> failwith "invalid operator") operator
-
-let inc (r, c) = (r, c + 1)
+        | _ -> error lexer operator "invalid operator") operator
 
 (* does not change the saved tok *)
 let rec compute_tok lexer = 
@@ -180,7 +192,7 @@ let rec compute_tok lexer =
                 | '{' -> LBracket
                 | '}' -> RBracket
                 | ';' -> Semicolon
-                | _ -> failwith "illegal character" in
+                | _ -> lexer_error lexer "illegal character" in
             let pos = lexer.pos in
             advance_char lexer;
             Mark.create t pos (inc pos)
@@ -201,14 +213,4 @@ let peek lexer =
 
 let drop lexer =
     (pop lexer : token Mark.t) |> ignore
-
-exception Compiler_error
-
-let error lexer mark msg =
-    let fname = fname lexer in
-    let (r1, c1) = Mark.start mark in
-    let (r2, c2) = Mark.stop mark in
-    Printf.printf "%s:%d:%d-%d:%d: error: %s\n" fname r1 c1 r2 c2 msg;
-    print_endline (display_mark lexer mark);
-    raise Compiler_error
 
