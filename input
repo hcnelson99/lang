@@ -1,1 +1,4 @@
-let foo = fun x -> 3 in foo 3
+let t = fun x -> fun y -> x in
+let f = fun x -> fun y -> y in
+let if = fun b -> fun e1 -> fun e2 -> b e1 e2 in
+if t 1 2

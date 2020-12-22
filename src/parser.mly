@@ -24,14 +24,21 @@ m(x) :
 
 program : e = m(exp); Eof { e }
 
-atom : 
+exp_atom : 
   | i = m(Ident) { Ast.Var (Mark.obj i) }
   | i = m(Int_const) { Ast.Int_const (Mark.obj i) }
-  (* | Let; i = m(Ident); Equal; e1 = m(exp); In; e2 = m(exp); { Ast.Let (i, e1, e2) } *)
   | LParen; e = exp; RParen; { e }
 
+exp_ap :
+  | e = exp_atom; { e }
+  | e1 = m(exp_ap); e2 = m(exp_atom); { Ast.Ap (e1, e2) }
+
+exp_fun :
+  | e = exp_ap; { e }
+  | Fun; i = m(Ident); Arrow; e = m(exp_fun); { Ast.Abs (i, e) }
+
+
 exp : 
-  | e = atom; { e }
-  | Fun; i = m(Ident); Arrow; e = m(exp); { Ast.Abs (i, e) }
-  | e1 = m(exp); e2 = m(atom); { Ast.Ap (e1, e2) }
+  | e = exp_fun; { e }
+  | Let; i = m(Ident); Equal; e1 = m(exp); In; e2 = m(exp); { Ast.Let (i, e1, e2) }
 
