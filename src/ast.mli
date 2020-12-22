@@ -1,13 +1,17 @@
 open! Core
 
 type msym = Symbol.t Mark.t
+type binop = Plus
 
 type mexp = exp Mark.t
+
 and exp =
-    | Var of Symbol.t
-    | Ap of mexp * mexp
-    | Abs of msym * mexp
-    | Let of msym * mexp * mexp
+  | Var of Symbol.t
+  | Int_const of int
+  | Binop of binop * mexp * mexp
+  | Ap of mexp * mexp
+  | Abs of msym * mexp
+  | Let of msym * mexp * mexp
 
 type program = mexp
 

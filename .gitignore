@@ -1,5 +1,5 @@
 _build
 .merlin
-out
-*.s
-*.o
+src/parser.conflicts
+src/parser.ml
+src/parser.mli

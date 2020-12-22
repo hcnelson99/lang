@@ -1,4 +1,5 @@
 (executable
  (name main)
  (libraries core compiler)
- (preprocess (pps ppx_jane)))
+ (preprocess
+  (pps ppx_jane)))

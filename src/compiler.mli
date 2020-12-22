@@ -1,1 +1,1 @@
-val main : unit -> unit
+val main : fname:string -> unit

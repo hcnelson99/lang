@@ -1,1 +1,1 @@
-let () = Compiler.main ()
+let () = Compiler.main ~fname:"input"
