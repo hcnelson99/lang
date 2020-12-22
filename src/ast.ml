@@ -1,43 +1,20 @@
-open Core
+open! Core
 
 type msym = Symbol.t Mark.t
 
 type mexp = exp Mark.t
 and exp =
-    | BinOp of Lexer.op * mexp * mexp
-    | Variable of Symbol.t (* not msym since the Variable is already marked *)
-    | IntVal of int
-    | BoolVal of bool
+    | Var of Symbol.t
+    | Ap of mexp * mexp
+    | Abs of msym * mexp
+    | Let of msym * mexp * mexp
 
-type mstmt = stmt Mark.t
-and stmt =
-    | Return of mexp
-    | Block of mstmt list
-    | While of mexp * mstmt
-    | If of mexp * mstmt
-    | Declare of msym * mexp option
-    | Assign of msym * mexp
+type program = mexp
 
-type program = mstmt list
+let rec string_of_mexp mexp = match Mark.obj mexp with
+    | Var v -> [%string "(Var %{Symbol.to_string v})"]
+    | Ap (e1, e2) -> [%string "(Ap %{string_of_mexp e1} %{string_of_mexp e2})"]
+    | Abs (x, e) -> [%string "(Abs %{Symbol.to_string (Mark.obj x)} %{string_of_mexp e})"]
+    | Let (x, e1, e2) -> [%string "(Let %{Symbol.to_string (Mark.obj x)} %{string_of_mexp e1} %{string_of_mexp e2})"]
 
-let rec string_of_exp = function
-    | IntVal x -> Int.to_string x
-    | BoolVal b -> Bool.to_string b
-    | Variable s -> Symbol.str s
-    | BinOp (op, lhs, rhs) ->
-            let op_str = Lexer.string_of_op op in
-            let lhs_str = string_of_exp (Mark.obj lhs) in
-            let rhs_str = string_of_exp (Mark.obj rhs) in
-            "(" ^ lhs_str ^ op_str ^ rhs_str ^ ")"
-
-let rec string_of_stmt = function
-    | Return e -> "return " ^ string_of_exp (Mark.obj e) ^ ";"
-    | Declare (s, init) -> 
-            begin match init with
-            | Some i -> "var " ^ Symbol.str (Mark.obj s) ^ " = " ^ string_of_exp (Mark.obj i) ^ ";"
-            | None-> "var " ^ Symbol.str (Mark.obj s) ^ ";"
-            end
-    | Assign (l, e) -> Symbol.str (Mark.obj l) ^ " = " ^ string_of_exp (Mark.obj e) ^ ";"
-    | Block stmts -> "{" ^ (List.map ~f:(fun x -> string_of_stmt @@ Mark.obj x) stmts |> String.concat ~sep:";\n") ^ "}"
-    | While (cond, body) -> "while(" ^ string_of_exp (Mark.obj cond) ^ ")\n" ^ string_of_stmt (Mark.obj body)
-    | If (cond, body) -> "if(" ^ string_of_exp (Mark.obj cond) ^ ")\n" ^ string_of_stmt (Mark.obj body)
+let string_of_program = string_of_mexp

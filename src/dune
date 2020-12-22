@@ -3,3 +3,9 @@
  (libraries core)
  (inline_tests)
  (preprocess (pps ppx_jane)))
+
+(ocamllex
+ (modules lexer))
+
+(menhir
+ (modules parser))

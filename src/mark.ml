@@ -1,5 +1,5 @@
 (* row, col *)
-type pos = int * int
+type pos = Lexing.position 
 type 'a t = 
     {
         obj : 'a;

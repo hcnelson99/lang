@@ -1,4 +1,4 @@
-type pos = int * int
+type pos = Lexing.position 
 type 'a t
 val start : 'a t -> pos
 val stop : 'a t -> pos

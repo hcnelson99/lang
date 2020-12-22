@@ -1,3 +1,3 @@
 type t [@@deriving sexp, compare, hash, equal]
-val create : string -> t
-val str : t -> string
+val of_string : string -> t
+val to_string : t -> string

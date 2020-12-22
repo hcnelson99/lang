@@ -1,3 +1,0 @@
-alias bw='dune exec --profile release ./main.exe source'
-alias b='dune exec ./main.exe source'
-alias t='dune runtest --profile release'
