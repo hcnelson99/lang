@@ -8,7 +8,7 @@ type mexp = exp Mark.t
 and exp =
   | Var of Symbol.t
   | Int_const of int
-  | Binop of binop * mexp * mexp
+  (* | Binop of binop * mexp * mexp *)
   | Ap of mexp * mexp
   | Abs of msym * mexp
   | Let of msym * mexp * mexp

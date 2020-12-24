@@ -11,7 +11,8 @@ let main ~fname =
       lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = fname };
       try
         let ast = compile lexbuf in
-        print_endline (Ast.string_of_program ast)
+        print_endline (Ast.string_of_program ast);
+        ast |> Typechecker.typecheck |> Typechecker.Poly_ty.to_string |> print_endline
       with
       | Error_msg.Error e -> prerr_endline (Error_msg.error_to_string e))
 ;;
