@@ -151,6 +151,9 @@ end
  * also help with the occurs check in the case where unification leads to
  * circularity (like fun x -> x x) *)
 let generalize uf ctx ty =
+  (* You have to UF before you generalize to make sure you're finding all the
+   * free variables correctly... the path compression / automatically mutate
+   * all the other types when you unify change would be really nice here *)
   let ty = Union_find.find uf ty in
   let alpha = Set.diff (Mono_ty.free ty) (free_ctx ctx) in
   if Set.is_empty alpha then Poly_ty.Mono ty else Poly_ty.Forall (alpha, ty)
