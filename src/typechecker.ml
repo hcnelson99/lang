@@ -150,6 +150,7 @@ end
  * "maintain the binding of type variables in the context". This supposedly can
  * also help with the occurs check in the case where unification leads to
  * circularity (like fun x -> x x) *)
+(* TODO: check for circularity *)
 let generalize uf ctx ty =
   (* You have to UF before you generalize to make sure you're finding all the
    * free variables correctly... the path compression / automatically mutate
@@ -182,12 +183,14 @@ let rec infer (uf : Union_find.t) (ctx : context) (e : Ast.mexp) =
     | Some (Forall (alpha, mty)) -> inst alpha mty)
   | Abs (x, e) ->
     let tau = Mono_ty.Var (TyVar.create ()) in
+    (* TODO: implement alpha-equivalence *)
     let ctx' = Symbol.Map.add_exn ctx ~key:(Mark.obj x) ~data:(Mono tau) in
     let tau' = infer uf ctx' e in
     Mono_ty.Arrow (tau, tau')
   | Let (x, e0, e1) ->
     let tau = infer uf ctx e0 in
     let gen_tau = generalize uf ctx tau in
+    (* TODO: implement alpha-equivalence *)
     let ctx' = Symbol.Map.add_exn ctx ~key:(Mark.obj x) ~data:gen_tau in
     infer uf ctx' e1
   | Ap (e0, e1) ->
