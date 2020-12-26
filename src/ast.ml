@@ -11,7 +11,7 @@ type mexp = exp Mark.t
 
 and exp =
   | Var of Symbol.t
-  | Int_const of int
+  | Int of int
   (* | Binop of binop * mexp * mexp *)
   | Ap of mexp * mexp
   | Abs of msym * mexp
@@ -22,7 +22,7 @@ type program = mexp
 let rec string_of_mexp mexp =
   match Mark.obj mexp with
   | Var v -> [%string "(Var %{Symbol.to_string v})"]
-  | Int_const i -> [%string "(IntConst %{i#Int})"]
+  | Int i -> [%string "(IntConst %{i#Int})"]
   (* | Binop (op, e1, e2) -> *)
   (*   [%string "(Binop %{string_of_binop op} %{string_of_mexp e1} %{string_of_mexp e2})"] *)
   | Ap (e1, e2) -> [%string "(Ap %{string_of_mexp e1} %{string_of_mexp e2})"]

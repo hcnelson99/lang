@@ -1,100 +1,5 @@
 open Core
-
-module TyVar : sig
-  type t [@@deriving sexp, compare, hash, equal]
-
-  include Comparable.S with type t := t
-  include Hashable.S with type t := t
-
-  val create : unit -> t
-  val to_string : t -> string
-end = struct
-  module T = struct
-    type t = int [@@deriving sexp, compare, hash, equal]
-  end
-
-  include T
-  include Comparable.Make (T)
-  include Hashable.Make (T)
-
-  let next_id = ref 0
-
-  let create () =
-    let res = !next_id in
-    next_id := res + 1;
-    res
-  ;;
-
-  let to_string = Int.to_string
-end
-
-module Mono_ty : sig
-  type t =
-    | Var of TyVar.t
-    | Int
-    | Arrow of t * t
-  [@@deriving sexp, compare, hash, equal]
-
-  include Hashable.S with type t := t
-
-  val map : f:(TyVar.t -> TyVar.t) -> t -> t
-  val free : t -> TyVar.Set.t
-  val to_string : t -> string
-end = struct
-  module T = struct
-    type t =
-      | Var of TyVar.t
-      | Int
-      | Arrow of t * t
-    [@@deriving sexp, compare, hash, equal]
-  end
-
-  include T
-  include Hashable.Make (T)
-
-  let rec map ~f ty =
-    match ty with
-    | Var ty -> Var (f ty)
-    | Int -> Int
-    | Arrow (t1, t2) -> Arrow (map ~f t1, map ~f t2)
-  ;;
-
-  let rec free = function
-    | Var v -> TyVar.Set.singleton v
-    | Int -> TyVar.Set.empty
-    | Arrow (t1, t2) -> Set.union (free t1) (free t2)
-  ;;
-
-  let rec to_string = function
-    (* TODO: Use letters and count up the alphabet nicely *)
-    | Var v -> "t" ^ TyVar.to_string v
-    | Int -> "int"
-    | Arrow (t1, t2) -> "(" ^ to_string t1 ^ " -> " ^ to_string t2 ^ ")"
-  ;;
-end
-
-module Poly_ty : sig
-  type t =
-    | Mono of Mono_ty.t
-    | Forall of TyVar.Set.t * Mono_ty.t
-
-  val free : t -> TyVar.Set.t
-  val to_string : t -> string
-end = struct
-  (* Do I want to make the Mono case just be Forall with an empty set? *)
-  type t =
-    | Mono of Mono_ty.t
-    | Forall of TyVar.Set.t * Mono_ty.t
-
-  let free = function
-    | Mono ty -> Mono_ty.free ty
-    | Forall (alpha, ty) -> Set.diff (Mono_ty.free ty) alpha
-  ;;
-
-  let to_string = function
-    | Mono ty | Forall (_, ty) -> Mono_ty.to_string ty
-  ;;
-end
+include Ast_type
 
 type context = Poly_ty.t Symbol.Map.t
 
@@ -175,7 +80,7 @@ let rec unify uf t0 t1 =
 
 let rec infer (uf : Union_find.t) (ctx : context) (e : Ast.mexp) =
   match Mark.obj e with
-  | Int_const _ -> Mono_ty.Int
+  | Int _ -> Mono_ty.Int
   | Var x ->
     (match Symbol.Map.find ctx x with
     | None -> raise (TypeError "var not in ctx")

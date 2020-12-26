@@ -22,6 +22,6 @@ rule initial = parse
     | "let" { T.Let }
     | "in" { T.In }
     | ident as name { T.Ident (Symbol.of_string name) }
-    | num as n { T.Int_const (Int.of_string n) }
+    | num as n { T.Int_literal (Int.of_string n) }
     | eof { T.Eof }
     | _ { Error_msg.raise_error ~msg:"Illegal character" lexbuf }
