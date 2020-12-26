@@ -78,37 +78,40 @@ let rec unify uf t0 t1 =
   | _, _ -> raise (TypeError "type mismatch")
 ;;
 
-let rec infer (uf : Union_find.t) (ctx : context) (e : Ast.mexp) =
+let rec infer (uf : Union_find.t) (ctx : context) (e : Ast.mexp) : Hir.tyexp =
   match Mark.obj e with
-  | Int _ -> Mono_ty.Int
+  | Int i -> Mono_ty.Int, Hir.Int i
   | Var x ->
     (match Symbol.Map.find ctx x with
     | None -> raise (TypeError "var not in ctx")
-    | Some (Mono ty) -> ty
-    | Some (Forall (alpha, mty)) -> inst alpha mty)
+    | Some (Mono ty) -> ty, Hir.Var x
+    | Some (Forall (alpha, mty)) -> inst alpha mty, Hir.Var x)
   | Abs (x, e) ->
     let tau = Mono_ty.Var (TyVar.create ()) in
+    let x = Mark.obj x in
     (* TODO: implement alpha-equivalence *)
-    let ctx' = Symbol.Map.add_exn ctx ~key:(Mark.obj x) ~data:(Mono tau) in
-    let tau' = infer uf ctx' e in
-    Mono_ty.Arrow (tau, tau')
+    let ctx' = Symbol.Map.add_exn ctx ~key:x ~data:(Mono tau) in
+    let ((tau', _) as h_e) = infer uf ctx' e in
+    Mono_ty.Arrow (tau, tau'), Hir.Abs (x, h_e)
   | Let (x, e0, e1) ->
-    let tau = infer uf ctx e0 in
+    let ((tau, _) as h_e0) = infer uf ctx e0 in
     let gen_tau = generalize uf ctx tau in
+    let x = Mark.obj x in
     (* TODO: implement alpha-equivalence *)
-    let ctx' = Symbol.Map.add_exn ctx ~key:(Mark.obj x) ~data:gen_tau in
-    infer uf ctx' e1
+    let ctx' = Symbol.Map.add_exn ctx ~key:x ~data:gen_tau in
+    let ((ty, _) as h_e1) = infer uf ctx' e1 in
+    ty, Hir.Let (x, h_e0, h_e1)
   | Ap (e0, e1) ->
-    let tau0 = infer uf ctx e0 in
-    let tau1 = infer uf ctx e1 in
+    let ((tau0, _) as h_e0) = infer uf ctx e0 in
+    let ((tau1, _) as h_e1) = infer uf ctx e1 in
     let tau' = TyVar.create () in
     unify uf tau0 (Mono_ty.Arrow (tau1, Mono_ty.Var tau'));
-    Mono_ty.Var tau'
+    Mono_ty.Var tau', Hir.Ap (h_e0, h_e1)
 ;;
 
 let typecheck ast =
   let uf = Union_find.create () in
   let ctx = Symbol.Map.empty in
-  let ty = infer uf ctx ast in
-  generalize uf ctx (Union_find.find uf ty)
+  let monoty, hexp = infer uf ctx ast in
+  generalize uf ctx (Union_find.find uf monoty), (monoty, hexp)
 ;;

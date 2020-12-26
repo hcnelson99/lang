@@ -28,7 +28,7 @@ module Mono_ty = struct
 
   let rec to_string = function
     (* TODO: Use letters and count up the alphabet nicely *)
-    | Var v -> "t" ^ TyVar.to_string v
+    | Var v -> TyVar.to_string v
     | Int -> "int"
     | Arrow (t1, t2) -> "(" ^ to_string t1 ^ " -> " ^ to_string t2 ^ ")"
   ;;
@@ -46,6 +46,11 @@ module Poly_ty = struct
   ;;
 
   let to_string = function
-    | Mono ty | Forall (_, ty) -> Mono_ty.to_string ty
+    | Mono ty -> Mono_ty.to_string ty
+    | Forall (alpha, ty) ->
+      let alpha_string =
+        alpha |> Set.to_list |> List.map ~f:TyVar.to_string |> String.concat ~sep:", "
+      in
+      "forall " ^ alpha_string ^ " . " ^ Mono_ty.to_string ty
   ;;
 end

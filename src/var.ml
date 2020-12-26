@@ -17,7 +17,7 @@ module MkVar () : Var_intf.S = struct
     res
   ;;
 
-  let to_string = Int.to_string
+  let to_string x = "t" ^ Int.to_string x
 end
 
 include MkVar ()
