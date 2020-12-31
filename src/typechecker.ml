@@ -22,12 +22,31 @@ let free_ctx (ctx : context) =
 module Union_find : sig
   type t
 
-  val create : unit -> t
-  val union_var : t -> TyVar.t -> TyVar.t -> unit
-  val union_ty : t -> TyVar.t -> Mono_ty.t -> unit
-  val find : t -> Mono_ty.t -> Mono_ty.t
+  module Ty : sig
+    type t
+
+    val unconstrained : unit -> t
+  end
+
+  module View : sig
+    type t =
+      | Var of Ty.t
+      | Int
+      | Arrow of Ty.t * Ty.t
+
+    val of_ty : Ty.t -> t
+  end
+
+  val unify : t -> Ty.t -> Ty.t -> unit
+  val find : t -> Ty.t -> Mono_ty.t
 end = struct
-  type t = Mono_ty.t option TyVar.Table.t
+  module Ty = struct
+    include Var.MkVar ()
+
+    let unconstrained = create
+  end
+
+  type t = Mono_ty.t option Ty.Table.t
 
   let create () = TyVar.Table.create ()
 
@@ -47,8 +66,18 @@ end = struct
       | Some (Some child) -> find t child)
   ;;
 
-  let union_var t v1 v2 = Hashtbl.set t ~key:v1 ~data:(Some (Mono_ty.Var v2))
-  let union_ty t v ty = Hashtbl.set t ~key:v ~data:(Some ty)
+  let rec unify uf t0 t1 =
+    let t0 = find uf t0 in
+    let t1 = find uf t1 in
+    match t0, t1 with
+    | Int, Int -> ()
+    | Arrow (p1, p2), Arrow (q1, q2) ->
+      unify uf p1 q1;
+      unify uf p2 q2
+    | Var v0, Var v1 -> Hashtbl.set uf ~key:t0 ~data:(Some (Mono_ty.Var v1))
+    | Var v, ty | ty, Var v -> Hashtbl.set uf ~key:v ~data:(Some ty)
+    | _, _ -> raise (TypeError "type mismatch")
+  ;;
 end
 
 (* TODO: generalize should be able to be computed in constant time if we
@@ -63,19 +92,6 @@ let generalize uf ctx ty =
   let ty = Union_find.find uf ty in
   let alpha = Set.diff (Mono_ty.free ty) (free_ctx ctx) in
   if Set.is_empty alpha then Poly_ty.Mono ty else Poly_ty.Forall (alpha, ty)
-;;
-
-let rec unify uf t0 t1 =
-  let t0 = Union_find.find uf t0 in
-  let t1 = Union_find.find uf t1 in
-  match t0, t1 with
-  | Int, Int -> ()
-  | Arrow (p1, p2), Arrow (q1, q2) ->
-    unify uf p1 q1;
-    unify uf p2 q2
-  | Var v1, Var v2 -> Union_find.union_var uf v1 v2
-  | Var v, ty | ty, Var v -> Union_find.union_ty uf v ty
-  | _, _ -> raise (TypeError "type mismatch")
 ;;
 
 let rec infer (uf : Union_find.t) (ctx : context) (e : Ast.mexp) : Hir.tyexp =
