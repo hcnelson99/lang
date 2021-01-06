@@ -6,7 +6,7 @@ type exp =
   | Abs of Symbol.t * tyexp
   | Let of Symbol.t * tyexp * tyexp
 
-and tyexp = Ast_type.Mono_ty.t * exp
+and tyexp = Ty.t * exp
 
 type program = tyexp
 

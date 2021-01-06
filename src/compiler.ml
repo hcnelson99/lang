@@ -12,9 +12,8 @@ let main ~fname =
       try
         let ast = compile lexbuf in
         print_endline (Ast.string_of_program ast);
-        let ty, hexp = Typechecker.typecheck ast in
-        print_endline (Hir.string_of_tyexp hexp);
-        print_endline (Ast_type.Poly_ty.to_string ty)
+        let hexp = Typechecker.typecheck ast in
+        print_endline (Hir.string_of_tyexp hexp)
       with
       | Error_msg.Error e -> prerr_endline (Error_msg.error_to_string e))
 ;;
