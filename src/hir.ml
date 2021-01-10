@@ -1,3 +1,5 @@
+(* TODO: This is more of a typechecked but non-marked AST than a Hir... we
+ * probably have too many typed things going on *)
 type exp =
   | Var of Symbol.t
   | Int of int

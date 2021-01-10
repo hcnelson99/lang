@@ -8,6 +8,15 @@ type context = (bound * Ty.t) Symbol.Map.t
 
 exception TypeError of string
 
+let is_syntactic_value e =
+  match Mark.obj e with
+  | Ast.Var _ -> true
+  | Ast.Int _ -> true
+  | Ast.Ap _ -> false
+  | Ast.Abs _ -> true
+  | Ast.Let _ -> false
+;;
+
 let rec infer (ctx : context) (e : Ast.mexp) : Hir.tyexp =
   match Mark.obj e with
   | Int i -> Ty.int_, Hir.Int i
@@ -28,7 +37,8 @@ let rec infer (ctx : context) (e : Ast.mexp) : Hir.tyexp =
     let x = Mark.obj x in
     (* TODO: implement alpha-equivalence *)
     (* OPT: mark non-polymorphic let-bound types as fun_bound (since they don't need to be instantiated *)
-    let ctx' = Symbol.Map.add_exn ctx ~key:x ~data:(Let_bound, tau) in
+    let binding_type = if is_syntactic_value e0 then Let_bound else Fun_bound in
+    let ctx' = Symbol.Map.add_exn ctx ~key:x ~data:(binding_type, tau) in
     let ((ty, _) as h_e1) = infer ctx' e1 in
     ty, Hir.Let (x, h_e0, h_e1)
   | Ap (e0, e1) ->
