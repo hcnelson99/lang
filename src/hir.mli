@@ -1,4 +1,3 @@
-(* TODO: Symbol.t becomes Var.t when we handle alpha-equivalence *)
 module Ty : sig
   module Var : Var_intf.S
 
@@ -6,9 +5,14 @@ module Ty : sig
     | Int
     | Var of Var.t
     | Arrow of t * t
+  [@@deriving sexp, compare, hash, equal]
 
+  val is_poly : t -> bool
+  val free_vars : t -> Var.t list
   val to_string : t -> string
 end
+
+(* TODO: Symbol.t becomes Var.t when we handle alpha-equivalence *)
 
 type 'a exp =
   | Var of Symbol.t

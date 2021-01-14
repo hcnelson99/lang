@@ -13,7 +13,9 @@ let main ~fname =
         let ast = compile lexbuf in
         print_endline (Ast.string_of_program ast);
         let hexp = Typechecker.typecheck ast in
-        print_endline (Hir.string_of_tyexp hexp)
+        print_endline (Hir.string_of_tyexp hexp);
+        let hexp_mono = Monomorphize.monomorphize hexp in
+        print_endline (Hir.string_of_tyexp hexp_mono)
       with
       | Error_msg.Error e -> prerr_endline (Error_msg.error_to_string e))
 ;;

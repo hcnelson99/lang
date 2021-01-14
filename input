@@ -1,2 +1,5 @@
 let id = fun x -> x in
-id 1
+let a = id 1 in
+let b = id 2 in
+let c = id id in
+c a

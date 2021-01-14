@@ -5,6 +5,19 @@ module Ty = struct
     | Int
     | Var of Var.t
     | Arrow of t * t
+  [@@deriving sexp, compare, hash, equal]
+
+  let rec is_poly = function
+    | Int -> false
+    | Var _ -> true
+    | Arrow (t1, t2) -> is_poly t1 || is_poly t2
+  ;;
+
+  let rec free_vars = function
+    | Int -> []
+    | Var v -> [ v ]
+    | Arrow (t1, t2) -> free_vars t1 @ free_vars t2
+  ;;
 
   let rec to_string = function
     | Int -> "Int"
