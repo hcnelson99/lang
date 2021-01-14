@@ -17,7 +17,7 @@ let is_syntactic_value e =
   | Ast.Let _ -> false
 ;;
 
-let rec infer (ctx : context) (e : Ast.mexp) : Hir.tyexp =
+let rec infer (ctx : context) (e : Ast.mexp) =
   match Mark.obj e with
   | Int i -> Ty.int_, Hir.Int i
   | Var x ->
@@ -54,5 +54,5 @@ let typecheck ast =
   let ((ty, _) as hir) = infer ctx ast in
   if Ty.is_poly ty
   then raise (TypeError "Program must not be polymorphic at the top level")
-  else hir
+  else Hir.map_ty ~f:Ty.to_hir_ty hir
 ;;

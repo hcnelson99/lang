@@ -21,3 +21,6 @@ module Union_find : sig
   (* Reinstantiate a polymorphic type *)
   val instantiate : t -> t
 end
+
+(* Should only be used after all unification is complete *)
+val to_hir_ty : t -> Hir.Ty.t

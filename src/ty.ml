@@ -1,4 +1,7 @@
 open Core
+
+(* TODO: refactor to be internal to typechecker *)
+
 include Var.MkVar ()
 
 type data =
@@ -103,3 +106,13 @@ module Union_find = struct
     go t
   ;;
 end
+
+let to_hir_table = Table.create ()
+
+let rec to_hir_ty t =
+  match Find.find t with
+  | Find.Var v ->
+    Hir.Ty.Var (Hashtbl.find_or_add to_hir_table v ~default:Hir.Ty.Var.create)
+  | Find.Int -> Hir.Ty.Int
+  | Find.Arrow (t1, t2) -> Hir.Ty.Arrow (to_hir_ty t1, to_hir_ty t2)
+;;

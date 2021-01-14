@@ -1,1 +1,1 @@
-val typecheck : Ast.program -> Hir.tyexp
+val typecheck : Ast.program -> Hir.program
