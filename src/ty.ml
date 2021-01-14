@@ -66,6 +66,13 @@ let to_string t =
   go t
 ;;
 
+let rec is_poly t =
+  match Find.find t with
+  | Find.Var _ -> true
+  | Find.Int -> false
+  | Find.Arrow (t1, t2) -> is_poly t1 || is_poly t2
+;;
+
 module Union_find = struct
   exception Unification_error
 
@@ -81,13 +88,6 @@ module Union_find = struct
     | _, Find.Var v -> Hashtbl.set union_find_table ~key:v ~data:(Link t0)
     | _, _ -> raise Unification_error
   ;;
-
-  (* let rec is_poly t = *)
-  (*   match Find.find t with *)
-  (*   | Find.Var _ -> true *)
-  (*   | Find.Int -> false *)
-  (*   | Find.Arrow (t1, t2) -> is_poly t1 || is_poly t2 *)
-  (* ;; *)
 
   let instantiate t =
     let find_or_create =

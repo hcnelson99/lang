@@ -11,6 +11,7 @@ val unconstrained : unit -> t
     *)
 val arrow : t * t -> t
 val int_ : t
+val is_poly : t -> bool
 
 module Union_find : sig
   exception Unification_error
