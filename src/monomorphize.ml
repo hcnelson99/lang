@@ -117,19 +117,63 @@ let analyze_polymorphic_uses e =
   poly_insts
 ;;
 
-let rec clone_lets poly_insts ((ty, e) as tyexp) =
-  match e with
-  | Hir.Var _ -> tyexp
-  | Hir.Int _ -> tyexp
-  | Hir.Ap (e1, e2) -> ty, Hir.Ap (clone_lets poly_insts e1, clone_lets poly_insts e2)
-  | Hir.Abs (v, e) -> ty, Hir.Abs (v, clone_lets poly_insts e)
-  | Hir.Let (v, e1, e2) ->
-    (match Hashtbl.find_exn poly_insts v with
-    | Mono -> ty, Hir.Let (v, clone_lets poly_insts e1, clone_lets poly_insts e2)
-    | Poly { poly_ty = _; insts } ->
-      let e1' = clone_lets poly_insts e1 in
-      let e2' = clone_lets poly_insts e2 in
-      Map.fold insts ~init:e2' ~f:(fun ~key:_ ~data:_ e2 -> ty, Hir.Let (v, e1', e2)))
+let specialize mapping e =
+  let rec f = function
+    | Hir.Ty.Int -> Hir.Ty.Int
+    | Hir.Ty.Var v -> Hashtbl.find_exn mapping v
+    | Hir.Ty.Arrow (t1, t2) -> Hir.Ty.Arrow (f t1, f t2)
+  in
+  Hir.map_ty ~f e
+;;
+
+let clone_lets poly_insts e =
+  let module T = struct
+    type t = Symbol.t * Hir.Ty.t [@@deriving hash, compare, sexp]
+  end
+  in
+  let module Var_inst_table = Hashtbl.Make (T) in
+  let var_inst_table = Var_inst_table.create () in
+  let counter =
+    let x = ref 0 in
+    fun () ->
+      let r = !x in
+      x := r + 1;
+      Int.to_string r
+  in
+  let rec go ((ty, e) as tyexp) =
+    match e with
+    | Hir.Var v ->
+      let () = print_endline ("var " ^ Symbol.to_string v) in
+      let () = print_endline (Hir.Ty.to_string ty) in
+      (match Hashtbl.find var_inst_table (v, ty) with
+      | None -> tyexp
+      | Some v' -> ty, Hir.Var v')
+    | Hir.Int _ -> tyexp
+    | Hir.Ap (e1, e2) -> ty, Hir.Ap (go e1, go e2)
+    | Hir.Abs (v, e) -> ty, Hir.Abs (v, go e)
+    | Hir.Let (v, e1, e2) ->
+      (match Hashtbl.find_exn poly_insts v with
+      | Mono -> ty, Hir.Let (v, go e1, go e2)
+      | Poly { poly_ty = _; insts } ->
+        let e1' = go e1 in
+        let k =
+          Map.fold
+            insts
+            ~init:(fun x -> x)
+            ~f:(fun ~key:mono_ty ~data:mapping k ->
+              let e1'' = specialize mapping e1' in
+              let v' =
+                Symbol.of_string (Symbol.to_string v ^ "_polymorph_" ^ counter ())
+              in
+              let () = print_endline (Symbol.to_string v) in
+              let () = print_endline (Symbol.to_string v') in
+              let () = print_endline (Hir.Ty.to_string mono_ty) in
+              Hashtbl.add_exn var_inst_table ~key:(v, mono_ty) ~data:v';
+              fun x -> ty, Hir.Let (v', e1'', k x))
+        in
+        k (go e2))
+  in
+  go e
 ;;
 
 let monomorphize e =
