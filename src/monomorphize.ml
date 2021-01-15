@@ -143,8 +143,6 @@ let clone_lets poly_insts e =
   let rec go ((ty, e) as tyexp) =
     match e with
     | Hir.Var v ->
-      let () = print_endline ("var " ^ Symbol.to_string v) in
-      let () = print_endline (Hir.Ty.to_string ty) in
       (match Hashtbl.find var_inst_table (v, ty) with
       | None -> tyexp
       | Some v' -> ty, Hir.Var v')
@@ -166,9 +164,6 @@ let clone_lets poly_insts e =
               let v' =
                 Symbol.of_string (Symbol.to_string v ^ "_polymorph_" ^ counter ())
               in
-              let () = print_endline (Symbol.to_string v) in
-              let () = print_endline (Symbol.to_string v') in
-              let () = print_endline (Hir.Ty.to_string mono_ty) in
               Hashtbl.add_exn var_inst_table ~key:(v, mono_ty) ~data:v';
               fun x -> ty, Hir.Let (v', e1'', k x))
         in
