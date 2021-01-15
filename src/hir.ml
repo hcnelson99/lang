@@ -1,11 +1,19 @@
+open Core
+
 module Ty = struct
   module Var = Var.MkVar ()
 
-  type t =
-    | Int
-    | Var of Var.t
-    | Arrow of t * t
-  [@@deriving sexp, compare, hash, equal]
+  module T = struct
+    type t =
+      | Int
+      | Var of Var.t
+      | Arrow of t * t
+    [@@deriving sexp, compare, hash, equal]
+  end
+
+  include T
+  include Hashable.Make (T)
+  include Comparable.Make (T)
 
   let rec is_poly = function
     | Int -> false

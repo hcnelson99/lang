@@ -1,3 +1,5 @@
+open Core
+
 module Ty : sig
   module Var : Var_intf.S
 
@@ -6,6 +8,9 @@ module Ty : sig
     | Var of Var.t
     | Arrow of t * t
   [@@deriving sexp, compare, hash, equal]
+
+  include Hashable.S with type t := t
+  include Comparable.S with type t := t
 
   val is_poly : t -> bool
   val free_vars : t -> Var.t list

@@ -40,11 +40,13 @@ let map_poly_type_to_mono_type poly_ty mono_ty =
   map
 ;;
 
+type mapping = Hir.Ty.t Hir.Ty.Var.Table.t
+
 type ty_insts =
   | Mono
   | Poly of
       { poly_ty : Hir.Ty.t
-      ; insts : Hir.Ty.t Hir.Ty.Var.Table.t list
+      ; insts : mapping Hir.Ty.Map.t
       }
 
 (* TODO: come up with a better name than "context" *)
@@ -59,9 +61,9 @@ let print_poly_insts (poly_insts : poly_insts) =
       | Mono -> print_endline "mono"
       | Poly { poly_ty; insts } ->
         print_endline (Hir.Ty.to_string poly_ty);
-        List.iter insts ~f:(fun inst ->
-            print_endline "\tinst:";
-            Hashtbl.iteri inst ~f:(fun ~key ~data ->
+        Map.iteri insts ~f:(fun ~key:mono_ty ~data:mapping ->
+            print_endline [%string "\tinst for type %{Hir.Ty.to_string mono_ty}"];
+            Hashtbl.iteri mapping ~f:(fun ~key ~data ->
                 print_endline
                   [%string "\t\t%{Hir.Ty.Var.to_string key} -> %{Hir.Ty.to_string data}"])))
 ;;
@@ -70,7 +72,11 @@ let defined_as_mono poly_insts v = Hashtbl.add_exn poly_insts ~key:v ~data:Mono
 
 let defined_as_poly poly_insts v ty =
   if Hir.Ty.is_poly ty
-  then Hashtbl.add_exn poly_insts ~key:v ~data:(Poly { poly_ty = ty; insts = [] })
+  then
+    Hashtbl.add_exn
+      poly_insts
+      ~key:v
+      ~data:(Poly { poly_ty = ty; insts = Hir.Ty.Map.empty })
   else defined_as_mono poly_insts v
 ;;
 
@@ -81,9 +87,12 @@ let used_as poly_insts v ty =
   | Some (Poly { poly_ty; insts }) ->
     let inst = map_poly_type_to_mono_type poly_ty ty in
     (* TODO: n^2 very slow *)
-    if List.exists insts ~f:(fun x -> Hir.Ty.Var.Table.equal Hir.Ty.equal inst x)
-    then ()
-    else Hashtbl.set poly_insts ~key:v ~data:(Poly { poly_ty; insts = inst :: insts })
+    let insts =
+      match Map.add insts ~key:ty ~data:inst with
+      | `Ok res -> res
+      | `Duplicate -> insts
+    in
+    Hashtbl.set poly_insts ~key:v ~data:(Poly { poly_ty; insts })
 ;;
 
 let analyze_polymorphic_uses e =
@@ -120,7 +129,7 @@ let rec clone_lets poly_insts ((ty, e) as tyexp) =
     | Poly { poly_ty = _; insts } ->
       let e1' = clone_lets poly_insts e1 in
       let e2' = clone_lets poly_insts e2 in
-      List.fold insts ~init:e2' ~f:(fun e2 _poly_inst -> ty, Hir.Let (v, e1', e2)))
+      Map.fold insts ~init:e2' ~f:(fun ~key:_ ~data:_ e2 -> ty, Hir.Let (v, e1', e2)))
 ;;
 
 let monomorphize e =
