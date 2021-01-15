@@ -162,6 +162,7 @@ let clone_lets poly_insts e =
             ~init:(fun x -> x)
             ~f:(fun ~key:mono_ty ~data:mapping k ->
               let e1'' = specialize mapping e1' in
+              (* TODO: name mangle better (fix when we handle alpha-renaming better) *)
               let v' =
                 Symbol.of_string (Symbol.to_string v ^ "_polymorph_" ^ counter ())
               in
