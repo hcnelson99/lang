@@ -1,8 +1,11 @@
 open! Core
 
+val debug_print_union_find_table : unit -> unit
+
 type t
 
 val to_string : t -> string
+val to_string_debug : t -> string
 val unconstrained : unit -> t
 
 (* TODO: make this just be

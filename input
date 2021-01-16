@@ -1,4 +1,3 @@
 let id = fun x -> x in
-let a = id 1 in
-let b = id id in
-b a
+let id2 = fun y -> id y in
+1

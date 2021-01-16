@@ -55,16 +55,18 @@ let rec map_ty ~f (ty, exp) =
     | Let (v, e1, e2) -> Let (v, map_ty ~f e1, map_ty ~f e2) )
 ;;
 
-let rec string_of_tyexp (ty, exp) =
-  let ty_str = Ty.to_string ty in
-  match exp with
-  | Var v -> [%string "(%{Symbol.to_string v} : %{ty_str})"]
-  | Int i -> [%string "(%{i#Int} : %{ty_str})"]
-  | Ap (e1, e2) -> [%string "(%{string_of_tyexp e1} %{string_of_tyexp e2} : %{ty_str})"]
-  | Abs (x, e) ->
-    [%string "((fun %{Symbol.to_string x} -> %{string_of_tyexp e}) : %{ty_str})"]
-  | Let (x, e1, e2) ->
-    [%string
-      "((let %{Symbol.to_string x} = %{string_of_tyexp e1} in %{string_of_tyexp e2}) : \
-       %{ty_str})"]
+let string_of_tyexp_custom ~ty_to_string e =
+  let rec go (ty, exp) =
+    let ty_str = ty_to_string ty in
+    match exp with
+    | Var v -> [%string "(%{Symbol.to_string v} : %{ty_str})"]
+    | Int i -> [%string "(%{i#Int} : %{ty_str})"]
+    | Ap (e1, e2) -> [%string "(%{go e1} %{go e2} : %{ty_str})"]
+    | Abs (x, e) -> [%string "((fun %{Symbol.to_string x} -> %{go e}) : %{ty_str})"]
+    | Let (x, e1, e2) ->
+      [%string "((let %{Symbol.to_string x} = %{go e1} in %{go e2}) : %{ty_str})"]
+  in
+  go e
 ;;
+
+let string_of_tyexp = string_of_tyexp_custom ~ty_to_string:Ty.to_string

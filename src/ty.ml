@@ -1,6 +1,6 @@
 open Core
 
-(* TODO: refactor to be internal to typechecker *)
+(* TODO: refactor to be internal to typechecker? *)
 
 include Var.MkVar ()
 
@@ -11,6 +11,20 @@ type data =
   | Arrow of t * t
 
 let union_find_table : data Table.t = Table.create ()
+
+let data_to_string = function
+  | Self -> "self"
+  | Int -> "int"
+  | Link t -> [%string "Link %{to_string t}"]
+  | Arrow (t1, t2) -> [%string "Arrow (%{to_string t1}, %{to_string t2})"]
+;;
+
+let debug_print_union_find_table () =
+  union_find_table
+  |> Hashtbl.to_alist
+  |> List.iter ~f:(fun (var, data) ->
+         print_endline [%string "%{to_string var} -> %{data_to_string data}"])
+;;
 
 let unconstrained () =
   let ty = create () in
@@ -49,8 +63,20 @@ module Find = struct
   ;;
 end
 
+let to_string_custom ~var_to_string t =
+  let rec go t =
+    match Find.find t with
+    | Var v -> var_to_string v
+    | Arrow (t1, t2) -> [%string "(%{go t1} -> %{go t2})"]
+    | Int -> "Int"
+  in
+  go t
+;;
+
+let to_string_debug = to_string_custom ~var_to_string:to_string
+
 let to_string t =
-  let name =
+  let var_to_string =
     let names = Table.create () in
     let next_name = ref 'a' in
     let new_name () =
@@ -60,13 +86,7 @@ let to_string t =
     in
     Hashtbl.find_or_add names ~default:new_name
   in
-  let rec go t =
-    match Find.find t with
-    | Var v -> name v
-    | Arrow (t1, t2) -> [%string "(%{go t1} -> %{go t2})"]
-    | Int -> "Int"
-  in
-  go t
+  to_string_custom ~var_to_string t
 ;;
 
 let rec is_poly t =
@@ -86,7 +106,7 @@ module Union_find = struct
     | Find.Arrow (p1, p2), Find.Arrow (q1, q2) ->
       unify p1 q1;
       unify p2 q2
-    | Find.Var _, Find.Var v1 -> Hashtbl.set union_find_table ~key:t0 ~data:(Link v1)
+    | Find.Var _, Find.Var v -> Hashtbl.set union_find_table ~key:t0 ~data:(Link v)
     | Find.Var v, _ -> Hashtbl.set union_find_table ~key:v ~data:(Link t1)
     | _, Find.Var v -> Hashtbl.set union_find_table ~key:v ~data:(Link t0)
     | _, _ -> raise Unification_error
