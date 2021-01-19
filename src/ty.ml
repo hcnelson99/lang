@@ -73,7 +73,7 @@ let to_string_custom ~var_to_string t =
   go t
 ;;
 
-let to_string_debug = to_string_custom ~var_to_string:to_string
+let to_string_debug = to_string
 
 let to_string t =
   let var_to_string =
@@ -106,7 +106,7 @@ module Union_find = struct
     | Find.Arrow (p1, p2), Find.Arrow (q1, q2) ->
       unify p1 q1;
       unify p2 q2
-    | Find.Var _, Find.Var v -> Hashtbl.set union_find_table ~key:t0 ~data:(Link v)
+    | Find.Var v1, Find.Var v2 -> Hashtbl.set union_find_table ~key:v1 ~data:(Link v2)
     | Find.Var v, _ -> Hashtbl.set union_find_table ~key:v ~data:(Link t1)
     | _, Find.Var v -> Hashtbl.set union_find_table ~key:v ~data:(Link t0)
     | _, _ -> raise Unification_error
