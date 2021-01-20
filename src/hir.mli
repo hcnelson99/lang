@@ -1,7 +1,7 @@
 open Core
 
 module Ty : sig
-  module Var : Var_intf.S
+  module Var : Uid_intf.S
 
   type t =
     | Int
@@ -17,14 +17,23 @@ module Ty : sig
   val to_string : t -> string
 end
 
-(* TODO: Symbol.t becomes Var.t when we handle alpha-equivalence *)
+module Var : sig
+  type t [@@deriving compare, hash, sexp]
+
+  include Hashable.S with type t := t
+  include Comparable.S with type t := t
+
+  val create : string -> t
+  val to_string : t -> string
+  val name : t -> string
+end
 
 type 'a exp =
-  | Var of Symbol.t
+  | Var of Var.t
   | Int of int
   | Ap of 'a tyexp * 'a tyexp
-  | Abs of Symbol.t * 'a tyexp
-  | Let of Symbol.t * 'a tyexp * 'a tyexp
+  | Abs of Var.t * 'a tyexp
+  | Let of Var.t * 'a tyexp * 'a tyexp
 
 and 'a tyexp = 'a * 'a exp
 

@@ -21,15 +21,15 @@ type program = mexp
 
 let rec string_of_mexp mexp =
   match Mark.obj mexp with
-  | Var v -> [%string "(Var %{Symbol.to_string v})"]
+  | Var v -> [%string "(Var %{Symbol.name v})"]
   | Int i -> [%string "(IntConst %{i#Int})"]
   (* | Binop (op, e1, e2) -> *)
   (*   [%string "(Binop %{string_of_binop op} %{string_of_mexp e1} %{string_of_mexp e2})"] *)
   | Ap (e1, e2) -> [%string "(Ap %{string_of_mexp e1} %{string_of_mexp e2})"]
-  | Abs (x, e) -> [%string "(Abs %{Symbol.to_string (Mark.obj x)} %{string_of_mexp e})"]
+  | Abs (x, e) -> [%string "(Abs %{Symbol.name (Mark.obj x)} %{string_of_mexp e})"]
   | Let (x, e1, e2) ->
     [%string
-      "(Let %{Symbol.to_string (Mark.obj x)} %{string_of_mexp e1} %{string_of_mexp e2})"]
+      "(Let %{Symbol.name (Mark.obj x)} %{string_of_mexp e1} %{string_of_mexp e2})"]
 ;;
 
 let string_of_program = string_of_mexp

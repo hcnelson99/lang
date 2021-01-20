@@ -51,11 +51,11 @@ type ty_insts =
 
 (* TODO: come up with a better name than "context" *)
 (* TODO: no real reason for this to be mutable table instead of a map other than that i'm generally lazy about threading things around *)
-type poly_insts = ty_insts Symbol.Table.t
+type poly_insts = ty_insts Hir.Var.Table.t
 
 let print_poly_insts (poly_insts : poly_insts) =
   Hashtbl.iteri poly_insts ~f:(fun ~key ~data ->
-      print_string (Symbol.to_string key);
+      print_string (Hir.Var.to_string key);
       print_string " -> ";
       match data with
       | Mono -> print_endline "mono"
@@ -112,7 +112,7 @@ let analyze_polymorphic_uses e =
       defined_as_poly poly_insts v t;
       go poly_insts e2
   in
-  let poly_insts = Symbol.Table.create () in
+  let poly_insts = Hir.Var.Table.create () in
   go poly_insts e;
   poly_insts
 ;;
@@ -128,18 +128,11 @@ let specialize mapping e =
 
 let clone_lets poly_insts e =
   let module T = struct
-    type t = Symbol.t * Hir.Ty.t [@@deriving hash, compare, sexp]
+    type t = Hir.Var.t * Hir.Ty.t [@@deriving hash, compare, sexp]
   end
   in
   let module Var_inst_table = Hashtbl.Make (T) in
   let var_inst_table = Var_inst_table.create () in
-  let counter =
-    let x = ref 0 in
-    fun () ->
-      let r = !x in
-      x := r + 1;
-      Int.to_string r
-  in
   let rec go ((ty, e) as tyexp) =
     match e with
     | Hir.Var v ->
@@ -160,10 +153,7 @@ let clone_lets poly_insts e =
             ~init:(fun x -> x)
             ~f:(fun ~key:mono_ty ~data:mapping k ->
               let e1'' = specialize mapping e1' in
-              (* TODO: name mangle better (fix when we handle alpha-renaming better) *)
-              let v' =
-                Symbol.of_string (Symbol.to_string v ^ "_polymorph_" ^ counter ())
-              in
+              let v' = Hir.Var.create (Hir.Var.name v) in
               Hashtbl.add_exn var_inst_table ~key:(v, mono_ty) ~data:v';
               fun x -> ty, Hir.Let (v', e1'', k x))
         in

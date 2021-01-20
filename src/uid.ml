@@ -1,6 +1,6 @@
 open Core
 
-module MkVar () : Var_intf.S = struct
+module Make () : Uid_intf.S = struct
   module T = struct
     type t = int [@@deriving sexp, compare, hash, equal]
   end
@@ -17,7 +17,5 @@ module MkVar () : Var_intf.S = struct
     res
   ;;
 
-  let to_string x = "t" ^ Int.to_string x
+  let to_string x = Int.to_string x
 end
-
-include MkVar ()

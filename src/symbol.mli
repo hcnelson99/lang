@@ -5,5 +5,5 @@ type t [@@deriving sexp, compare, hash, equal]
 include Comparable.S with type t := t
 include Hashable.S with type t := t
 
-val of_string : string -> t
-val to_string : t -> string
+val create : string -> t
+val name : t -> string

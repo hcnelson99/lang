@@ -21,7 +21,7 @@ rule initial = parse
     | "fun" { T.Fun }
     | "let" { T.Let }
     | "in" { T.In }
-    | ident as name { T.Ident (Symbol.of_string name) }
+    | ident as name { T.Ident (Symbol.create name) }
     | num as n { T.Int_literal (Int.of_string n) }
     | eof { T.Eof }
     | _ { Error_msg.raise_error ~msg:"Illegal character" lexbuf }

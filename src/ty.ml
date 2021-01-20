@@ -2,7 +2,7 @@ open Core
 
 (* TODO: refactor to be internal to typechecker? *)
 
-include Var.MkVar ()
+include Uid.Make ()
 
 type data =
   | Self
