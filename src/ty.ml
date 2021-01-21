@@ -3,14 +3,7 @@ open Core
 (* TODO: refactor to be internal to typechecker? *)
 
 include Uid.Make ()
-
-module Constructor = struct
-  type t =
-    | Int
-    | Bool
-    | Arrow
-  [@@deriving equal]
-end
+module Constructor = Hir.Ty.Constructor
 
 type data =
   | Self
@@ -124,11 +117,5 @@ let rec to_hir_ty t =
   match Find.find t with
   | Find.Var v ->
     Hir.Ty.Var (Hashtbl.find_or_add to_hir_table v ~default:Hir.Ty.Var.create)
-  | Find.Constructor (Constructor.Int, []) -> Hir.Ty.Int
-  | Find.Constructor (Constructor.Int, _) -> failwith "invalid int arity"
-  | Find.Constructor (Constructor.Bool, []) -> Hir.Ty.Bool
-  | Find.Constructor (Constructor.Bool, _) -> failwith "invalid bool arity"
-  | Find.Constructor (Constructor.Arrow, [ t1; t2 ]) ->
-    Hir.Ty.Arrow (to_hir_ty t1, to_hir_ty t2)
-  | Find.Constructor (Constructor.Arrow, _) -> failwith "invalid arrow arity"
+  | Find.Constructor (c, ts) -> Hir.Ty.Constructor (c, List.map ~f:to_hir_ty ts)
 ;;

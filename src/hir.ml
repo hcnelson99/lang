@@ -7,12 +7,19 @@ module Ty = struct
     let to_string t = "t" ^ to_string t
   end
 
-  module T = struct
+  module Constructor = struct
     type t =
       | Int
       | Bool
+      | Arrow
+      | Tuple
+    [@@deriving sexp, compare, hash, equal]
+  end
+
+  module T = struct
+    type t =
       | Var of Var.t
-      | Arrow of t * t
+      | Constructor of Constructor.t * t list
     [@@deriving sexp, compare, hash, equal]
   end
 
@@ -21,28 +28,40 @@ module Ty = struct
   include Comparable.Make (T)
 
   let rec is_poly = function
-    | Int | Bool -> false
     | Var _ -> true
-    | Arrow (t1, t2) -> is_poly t1 || is_poly t2
+    | Constructor (_, ts) -> List.fold ~init:false ~f:(fun b x -> b || is_poly x) ts
   ;;
 
   let rec free_vars = function
-    | Int | Bool -> []
     | Var v -> [ v ]
-    | Arrow (t1, t2) -> free_vars t1 @ free_vars t2
+    | Constructor (_, ts) -> List.concat_map ~f:free_vars ts
   ;;
 
   let rec to_string = function
-    | Int -> "Int"
-    | Bool -> "Bool"
+    | Constructor (Int, []) -> "Int"
+    | Constructor (Int, _) -> failwith "invalid int arity"
+    | Constructor (Bool, []) -> "Bool"
+    | Constructor (Bool, _) -> failwith "invalid bool arity"
     | Var v -> Var.to_string v
-    | Arrow (t1, t2) -> [%string "%{to_string_paren t1} -> %{to_string_paren t2}"]
+    | Constructor (Tuple, []) -> "unit"
+    | Constructor (Tuple, ts) ->
+      List.map ~f:to_string_paren ts |> String.concat ~sep:" * "
+    | Constructor (Arrow, [ t1; t2 ]) ->
+      [%string "%{to_string_paren t1} -> %{to_string_paren t2}"]
+    | Constructor (Arrow, _) -> failwith "invalid arrow arity"
 
   and to_string_paren t =
     let parenthesize =
       match t with
-      | Int | Var _ | Bool -> false
-      | Arrow _ -> true
+      | Var _ -> false
+      | Constructor (c, ts) ->
+        (match c with
+        | Int | Bool -> false
+        | Arrow -> true
+        | Tuple ->
+          (match ts with
+          | [] -> false
+          | _ -> true))
     in
     let res = to_string t in
     if parenthesize then "(" ^ res ^ ")" else res
@@ -69,6 +88,7 @@ type 'a exp =
   | Var of Var.t
   | Int of int
   | Bool of bool
+  | Tuple of 'a tyexp list
   | Ap of 'a tyexp * 'a tyexp
   | Abs of Var.t * 'a tyexp
   | Let of Var.t * 'a tyexp * 'a tyexp
@@ -83,6 +103,7 @@ let rec map_ty ~f (ty, exp) =
     | Var v -> Var v
     | Int i -> Int i
     | Bool b -> Bool b
+    | Tuple ts -> Tuple (List.map ~f:(map_ty ~f) ts)
     | Ap (e1, e2) -> Ap (map_ty ~f e1, map_ty ~f e2)
     | Abs (v, e) -> Abs (v, map_ty ~f e)
     | Let (v, e1, e2) -> Let (v, map_ty ~f e1, map_ty ~f e2) )
@@ -96,13 +117,21 @@ let format_tyexp_custom ~ty_to_string f e =
     | Var v -> fprintf f "%s" (Var.to_string v)
     | Int i -> fprintf f "%d" i
     | Bool b -> fprintf f "%s" (Bool.to_string b)
+    | Tuple ts ->
+      (match ts with
+      | [] -> fprintf f "()"
+      | [ _ ] -> failwith "cannot have arity 1 tuple"
+      | t :: ts ->
+        fprintf f "@[(%a" go_ty t;
+        List.iter ts ~f:(fun t -> fprintf f ",@ %a" go_ty t);
+        fprintf f "@,)@]")
     | Ap (e1, e2) -> fprintf f "@[<hov 4>%a@ %a@]" go_ty e1 go_ty e2
     | Abs (x, e) -> fprintf f "@[<4>fun %s ->@ %a@]" (Var.to_string x) go_ty e
     (* We don't show the let's type since we assume it's correct *)
     | Let (x, (ty, e1), (_, e2)) ->
       fprintf
         f
-        "@[<v>let %s : %s = %a in@ %a@]"
+        "@[<v>let @[<4>%s@ :@ %s =@ %a@] in@ %a@]"
         (Var.to_string x)
         (ty_to_string ty)
         go
@@ -112,7 +141,7 @@ let format_tyexp_custom ~ty_to_string f e =
   and go_ty f (ty, exp) =
     match exp with
     | Int _ | Bool _ -> go f exp
-    | Var _ | Ap _ | Abs _ | Let _ ->
+    | Var _ | Ap _ | Abs _ | Let _ | Tuple _ ->
       fprintf f "@[<hv>(%a@ : %s)@]" go exp (ty_to_string ty)
   in
   go_ty f e

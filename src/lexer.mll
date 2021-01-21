@@ -17,6 +17,7 @@ rule initial = parse
     | '(' { T.LParen }
     | ')' { T.RParen }
     | '=' { T.Equal }
+    | ',' { T.Comma }
     | "->" { T.Arrow }
     | "fun" { T.Fun }
     | "let" { T.Let }

@@ -8,9 +8,10 @@ type context = (Hir.Var.t * bound * Ty.t) Symbol.Map.t
 
 exception TypeError of string
 
-let is_syntactic_value e =
+let rec is_syntactic_value e =
   match Mark.obj e with
   | Ast.Var _ | Ast.Bool _ | Ast.Int _ | Ast.Abs _ -> true
+  | Ast.Tuple ts -> List.fold ~init:true ~f:(fun b x -> b && is_syntactic_value x) ts
   | Ast.Ap _ | Ast.Let _ -> false
 ;;
 
@@ -18,6 +19,10 @@ let rec infer (ctx : context) (e : Ast.mexp) =
   match Mark.obj e with
   | Int i -> Ty.constructor Ty.Constructor.Int [], Hir.Int i
   | Bool b -> Ty.constructor Ty.Constructor.Bool [], Hir.Bool b
+  | Tuple es ->
+    let es = List.map ~f:(infer ctx) es in
+    let ts = List.map ~f:fst es in
+    Ty.constructor Ty.Constructor.Tuple ts, Hir.Tuple es
   | Var x ->
     (match Symbol.Map.find ctx x with
     | None -> raise (TypeError "var not in ctx")

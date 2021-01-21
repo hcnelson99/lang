@@ -1,7 +1,5 @@
 open! Core
 
-(* TODO: need to handle types with free tyvars *)
-
 (* Right now we probably polymorph functions like "fun x -> 1" unnecessarily
  * when the 'a in 'a -> Int should just be replaced with unit *)
 
@@ -16,27 +14,23 @@ end
 
 let map_poly_type_to_mono_type poly_ty mono_ty =
   assert (Hir.Ty.is_poly poly_ty);
-  (* TODO: This is definitely not gonna work inside of a function because the type
-   * variables for that function become free. We will have to think about the
-   * best way to handle this *)
   assert (not (Hir.Ty.is_poly mono_ty));
   let map = Hir.Ty.Var.Table.create () in
   let rec go poly mono =
     let open Hir.Ty in
     match poly, mono with
     | _, Var _ -> failwith "ICE: rhs is supposed to be monoty"
-    | Int, Int -> ()
-    | Int, _ -> failwith "ICE: couldn't map type instantiation"
-    | Bool, Bool -> ()
-    | Bool, _ -> failwith "ICE: couldn't map type instantiation"
     | Var v, ty ->
       (match Hashtbl.add map ~key:v ~data:ty with
       | `Ok -> ()
       | `Duplicate -> assert (Hir.Ty.equal (Hashtbl.find_exn map v) ty))
-    | Arrow (p1, p2), Arrow (m1, m2) ->
-      go p1 m1;
-      go p2 m2
-    | Arrow _, _ -> failwith "ICE: couldn't map type instantiation"
+    | Constructor (c, ts), Constructor (c', ts') ->
+      if Hir.Ty.Constructor.equal c c'
+      then (
+        match List.zip ts ts' with
+        | List.Or_unequal_lengths.Unequal_lengths ->
+          failwith "ICE: couldn't unify in monomorphize"
+        | List.Or_unequal_lengths.Ok z -> List.iter ~f:(fun (t1, t2) -> go t1 t2) z)
   in
   go poly_ty mono_ty;
   map
@@ -45,9 +39,8 @@ let map_poly_type_to_mono_type poly_ty mono_ty =
 let specialize mapping e =
   let rec f t =
     match t with
-    | Hir.Ty.Int | Hir.Ty.Bool -> t
     | Hir.Ty.Var v -> Hashtbl.find_exn mapping v
-    | Hir.Ty.Arrow (t1, t2) -> Hir.Ty.Arrow (f t1, f t2)
+    | Hir.Ty.Constructor (c, ts) -> Hir.Ty.Constructor (c, List.map ~f ts)
   in
   Hir.map_ty ~f e
 ;;
@@ -64,6 +57,7 @@ let monomorphize e =
         let default () = Hir.Var.create (Hir.Var.name v) in
         ty, Hir.Var (Hashtbl.find_or_add insts ty ~default))
     | Hir.Ap (e1, e2) -> ty, Hir.Ap (go e1, go e2)
+    | Hir.Tuple es -> ty, Hir.Tuple (List.map ~f:go es)
     | Hir.Abs (v, e) -> ty, Hir.Abs (v, go e)
     | Hir.Let (v, ((e1_ty, _) as e1), e2) ->
       let insts = Hir.Ty.Table.create () in

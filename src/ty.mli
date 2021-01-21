@@ -7,6 +7,7 @@ module Constructor : sig
     | Int
     | Bool
     | Arrow
+    | Tuple
   [@@deriving equal]
 end
 

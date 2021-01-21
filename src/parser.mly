@@ -6,7 +6,7 @@ let mark data start_pos end_pos =
 %}
 
 %token Eof
-%token LParen RParen
+%token LParen RParen Comma
 %token True False
 %token <int> Int_literal
 %token <Symbol.t> Ident
@@ -25,12 +25,21 @@ m(x) :
 
 program : e = m(exp); Eof { e }
 
+exp_tuple :
+  | (* empty *) { [] }
+  | Comma; e = m(exp); tpl = exp_tuple { e :: tpl } 
+
 exp_atom : 
   | i = m(Ident) { Ast.Var (Mark.obj i) }
   | i = m(Int_literal) { Ast.Int (Mark.obj i) }
   | True; { Ast.Bool true } 
   | False; { Ast.Bool false } 
-  | LParen; e = exp; RParen; { e }
+  | LParen;  RParen; { Ast.Tuple [] }
+  | LParen; e = m(exp); tpl = exp_tuple; RParen; { 
+      match tpl with
+      | [] -> Mark.obj e 
+      | _ -> Ast.Tuple (e :: tpl)
+  }
 
 exp_ap :
   | e = exp_atom; { e }
