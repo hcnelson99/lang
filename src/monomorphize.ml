@@ -167,3 +167,24 @@ let monomorphize e =
   print_poly_insts polymorphic_uses;
   clone_lets polymorphic_uses e
 ;;
+
+let monomorphize e =
+  let table = Hir.Var.Table.create () in
+  let rec go ((ty, e) as tyexp) =
+    match e with
+    | Hir.Var v ->
+      (match Hashtbl.find table v with
+      | None -> tyexp
+      | Some insts ->
+        let default () = Hir.Var.create (Hir.Var.name v) in
+        ty, Hir.Var (Hashtbl.find_or_add insts ty ~default))
+    | Hir.Int _ -> tyexp
+    | Hir.Ap (e1, e2) -> ty, Hir.Ap (go e1, go e2)
+    | Hir.Abs (v, e) -> ty, Hir.Abs (v, go e)
+    | Hir.Let (v, e1, e2) ->
+      Hashtbl.set table ~key:v ~data:(Hir.Ty.Table.create ());
+      let e2' = go e2 in
+      failwith ""
+  in
+  go e
+;;
