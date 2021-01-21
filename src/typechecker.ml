@@ -16,8 +16,8 @@ let is_syntactic_value e =
 
 let rec infer (ctx : context) (e : Ast.mexp) =
   match Mark.obj e with
-  | Int i -> Ty.int_, Hir.Int i
-  | Bool b -> Ty.bool_, Hir.Bool b
+  | Int i -> Ty.constructor Ty.Constructor.Int [], Hir.Int i
+  | Bool b -> Ty.constructor Ty.Constructor.Bool [], Hir.Bool b
   | Var x ->
     (match Symbol.Map.find ctx x with
     | None -> raise (TypeError "var not in ctx")
@@ -29,7 +29,7 @@ let rec infer (ctx : context) (e : Ast.mexp) =
     let v = Hir.Var.create (Symbol.name x) in
     let ctx' = Symbol.Map.set ctx ~key:x ~data:(v, Fun_bound, tau) in
     let ((tau', _) as h_e) = infer ctx' e in
-    Ty.arrow (tau, tau'), Hir.Abs (v, h_e)
+    Ty.constructor Ty.Constructor.Arrow [ tau; tau' ], Hir.Abs (v, h_e)
   | Let (x, e0, e1) ->
     let ((tau, _) as h_e0) = infer ctx e0 in
     let x = Mark.obj x in
@@ -43,7 +43,7 @@ let rec infer (ctx : context) (e : Ast.mexp) =
     let ((tau0, _) as h_e0) = infer ctx e0 in
     let ((tau1, _) as h_e1) = infer ctx e1 in
     let tau' = Ty.unconstrained () in
-    Ty.Union_find.unify tau0 (Ty.arrow (tau1, tau'));
+    Ty.Union_find.unify tau0 (Ty.constructor Ty.Constructor.Arrow [ tau1; tau' ]);
     tau', Hir.Ap (h_e0, h_e1)
 ;;
 

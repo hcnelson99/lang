@@ -1,20 +1,17 @@
 open! Core
 
-val debug_print_union_find_table : unit -> unit
-
 type t
 
-val to_string : t -> string
-val to_string_debug : t -> string
-val unconstrained : unit -> t
+module Constructor : sig
+  type t =
+    | Int
+    | Bool
+    | Arrow
+  [@@deriving equal]
+end
 
-(* TODO: make this just be
-    [ val constructor : constructor -> t list -> t ]
-    and have int be arity 0 constructor?
-    *)
-val arrow : t * t -> t
-val int_ : t
-val bool_ : t
+val unconstrained : unit -> t
+val constructor : Constructor.t -> t list -> t
 val is_poly : t -> bool
 
 module Union_find : sig
