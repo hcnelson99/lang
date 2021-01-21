@@ -7,6 +7,7 @@ let mark data start_pos end_pos =
 
 %token Eof
 %token LParen RParen
+%token True False
 %token <int> Int_literal
 %token <Symbol.t> Ident
 %token Fun Let Equal Arrow In
@@ -27,6 +28,8 @@ program : e = m(exp); Eof { e }
 exp_atom : 
   | i = m(Ident) { Ast.Var (Mark.obj i) }
   | i = m(Int_literal) { Ast.Int (Mark.obj i) }
+  | True; { Ast.Bool true } 
+  | False; { Ast.Bool false } 
   | LParen; e = exp; RParen; { e }
 
 exp_ap :

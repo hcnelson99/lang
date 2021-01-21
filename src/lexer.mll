@@ -20,6 +20,8 @@ rule initial = parse
     | "->" { T.Arrow }
     | "fun" { T.Fun }
     | "let" { T.Let }
+    | "true" { T.True }
+    | "false" { T.False }
     | "in" { T.In }
     | ident as name { T.Ident (Symbol.create name) }
     | num as n { T.Int_literal (Int.of_string n) }

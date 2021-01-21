@@ -10,16 +10,14 @@ exception TypeError of string
 
 let is_syntactic_value e =
   match Mark.obj e with
-  | Ast.Var _ -> true
-  | Ast.Int _ -> true
-  | Ast.Ap _ -> false
-  | Ast.Abs _ -> true
-  | Ast.Let _ -> false
+  | Ast.Var _ | Ast.Bool _ | Ast.Int _ | Ast.Abs _ -> true
+  | Ast.Ap _ | Ast.Let _ -> false
 ;;
 
 let rec infer (ctx : context) (e : Ast.mexp) =
   match Mark.obj e with
   | Int i -> Ty.int_, Hir.Int i
+  | Bool b -> Ty.bool_, Hir.Bool b
   | Var x ->
     (match Symbol.Map.find ctx x with
     | None -> raise (TypeError "var not in ctx")

@@ -5,6 +5,7 @@ module Ty : sig
 
   type t =
     | Int
+    | Bool
     | Var of Var.t
     | Arrow of t * t
   [@@deriving sexp, compare, hash, equal]
@@ -31,6 +32,7 @@ end
 type 'a exp =
   | Var of Var.t
   | Int of int
+  | Bool of bool
   | Ap of 'a tyexp * 'a tyexp
   | Abs of Var.t * 'a tyexp
   | Let of Var.t * 'a tyexp * 'a tyexp

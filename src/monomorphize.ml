@@ -27,6 +27,8 @@ let map_poly_type_to_mono_type poly_ty mono_ty =
     | _, Var _ -> failwith "ICE: rhs is supposed to be monoty"
     | Int, Int -> ()
     | Int, _ -> failwith "ICE: couldn't map type instantiation"
+    | Bool, Bool -> ()
+    | Bool, _ -> failwith "ICE: couldn't map type instantiation"
     | Var v, ty ->
       (match Hashtbl.add map ~key:v ~data:ty with
       | `Ok -> ()
@@ -41,8 +43,9 @@ let map_poly_type_to_mono_type poly_ty mono_ty =
 ;;
 
 let specialize mapping e =
-  let rec f = function
-    | Hir.Ty.Int -> Hir.Ty.Int
+  let rec f t =
+    match t with
+    | Hir.Ty.Int | Hir.Ty.Bool -> t
     | Hir.Ty.Var v -> Hashtbl.find_exn mapping v
     | Hir.Ty.Arrow (t1, t2) -> Hir.Ty.Arrow (f t1, f t2)
   in
@@ -53,13 +56,13 @@ let monomorphize e =
   let table = Hir.Var.Table.create () in
   let rec go ((ty, e) as tyexp) =
     match e with
+    | Hir.Int _ | Hir.Bool _ -> tyexp
     | Hir.Var v ->
       (match Hashtbl.find table v with
       | None -> tyexp
       | Some insts ->
         let default () = Hir.Var.create (Hir.Var.name v) in
         ty, Hir.Var (Hashtbl.find_or_add insts ty ~default))
-    | Hir.Int _ -> tyexp
     | Hir.Ap (e1, e2) -> ty, Hir.Ap (go e1, go e2)
     | Hir.Abs (v, e) -> ty, Hir.Abs (v, go e)
     | Hir.Let (v, ((e1_ty, _) as e1), e2) ->

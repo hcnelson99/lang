@@ -10,6 +10,7 @@ module Ty = struct
   module T = struct
     type t =
       | Int
+      | Bool
       | Var of Var.t
       | Arrow of t * t
     [@@deriving sexp, compare, hash, equal]
@@ -20,26 +21,27 @@ module Ty = struct
   include Comparable.Make (T)
 
   let rec is_poly = function
-    | Int -> false
+    | Int | Bool -> false
     | Var _ -> true
     | Arrow (t1, t2) -> is_poly t1 || is_poly t2
   ;;
 
   let rec free_vars = function
-    | Int -> []
+    | Int | Bool -> []
     | Var v -> [ v ]
     | Arrow (t1, t2) -> free_vars t1 @ free_vars t2
   ;;
 
   let rec to_string = function
     | Int -> "Int"
+    | Bool -> "Bool"
     | Var v -> Var.to_string v
     | Arrow (t1, t2) -> [%string "%{to_string_paren t1} -> %{to_string_paren t2}"]
 
   and to_string_paren t =
     let parenthesize =
       match t with
-      | Int | Var _ -> false
+      | Int | Var _ | Bool -> false
       | Arrow _ -> true
     in
     let res = to_string t in
@@ -66,6 +68,7 @@ end
 type 'a exp =
   | Var of Var.t
   | Int of int
+  | Bool of bool
   | Ap of 'a tyexp * 'a tyexp
   | Abs of Var.t * 'a tyexp
   | Let of Var.t * 'a tyexp * 'a tyexp
@@ -79,6 +82,7 @@ let rec map_ty ~f (ty, exp) =
   , match exp with
     | Var v -> Var v
     | Int i -> Int i
+    | Bool b -> Bool b
     | Ap (e1, e2) -> Ap (map_ty ~f e1, map_ty ~f e2)
     | Abs (v, e) -> Abs (v, map_ty ~f e)
     | Let (v, e1, e2) -> Let (v, map_ty ~f e1, map_ty ~f e2) )
@@ -91,6 +95,7 @@ let format_tyexp_custom ~ty_to_string f e =
     match exp with
     | Var v -> fprintf f "%s" (Var.to_string v)
     | Int i -> fprintf f "%d" i
+    | Bool b -> fprintf f "%s" (Bool.to_string b)
     | Ap (e1, e2) -> fprintf f "@[<hov 4>%a@ %a@]" go_ty e1 go_ty e2
     | Abs (x, e) -> fprintf f "@[<4>fun %s ->@ %a@]" (Var.to_string x) go_ty e
     (* We don't show the let's type since we assume it's correct *)
@@ -106,7 +111,7 @@ let format_tyexp_custom ~ty_to_string f e =
         e2
   and go_ty f (ty, exp) =
     match exp with
-    | Int _ -> go f exp
+    | Int _ | Bool _ -> go f exp
     | Var _ | Ap _ | Abs _ | Let _ ->
       fprintf f "@[<hv>(%a@ : %s)@]" go exp (ty_to_string ty)
   in
