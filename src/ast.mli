@@ -15,4 +15,4 @@ and exp =
 
 type program = mexp
 
-val string_of_program : program -> string
+val format : Format.formatter -> program -> unit

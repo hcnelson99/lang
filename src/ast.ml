@@ -19,17 +19,28 @@ and exp =
 
 type program = mexp
 
-let rec string_of_mexp mexp =
+open Caml.Format
+
+let str f s = fprintf f "%s" s
+
+let rec format_mexp f mexp =
   match Mark.obj mexp with
-  | Var v -> [%string "(Var %{Symbol.name v})"]
-  | Int i -> [%string "(IntConst %{i#Int})"]
+  | Var v -> str f [%string "(Var %{Symbol.name v})"]
+  | Int i -> str f [%string "(IntConst %{i#Int})"]
   (* | Binop (op, e1, e2) -> *)
   (*   [%string "(Binop %{string_of_binop op} %{string_of_mexp e1} %{string_of_mexp e2})"] *)
-  | Ap (e1, e2) -> [%string "(Ap %{string_of_mexp e1} %{string_of_mexp e2})"]
-  | Abs (x, e) -> [%string "(Abs %{Symbol.name (Mark.obj x)} %{string_of_mexp e})"]
+  | Ap (e1, e2) -> fprintf f "@[(Ap@ @[<1>%a@ %a@]@])" format_mexp e1 format_mexp e2
+  | Abs (x, e) ->
+    fprintf f "(@[<1>Abs@ @[<1>%s@ %a@]@])" (Symbol.name (Mark.obj x)) format_mexp e
   | Let (x, e1, e2) ->
-    [%string
-      "(Let %{Symbol.name (Mark.obj x)} %{string_of_mexp e1} %{string_of_mexp e2})"]
+    fprintf
+      f
+      "(Let @[<v>%s %a@,%a@])"
+      (Symbol.name (Mark.obj x))
+      format_mexp
+      e1
+      format_mexp
+      e2
 ;;
 
-let string_of_program = string_of_mexp
+let format f e = fprintf f "%a@." format_mexp e
