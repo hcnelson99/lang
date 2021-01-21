@@ -1,3 +1,2 @@
-let id = fun x -> x in
-let id = fun x -> id x in
-id 3
+let id = fun x -> fun y -> x in
+id 3 2

@@ -29,13 +29,13 @@ let rec format_mexp f mexp =
   | Int i -> str f [%string "(IntConst %{i#Int})"]
   (* | Binop (op, e1, e2) -> *)
   (*   [%string "(Binop %{string_of_binop op} %{string_of_mexp e1} %{string_of_mexp e2})"] *)
-  | Ap (e1, e2) -> fprintf f "@[(Ap@ @[<1>%a@ %a@]@])" format_mexp e1 format_mexp e2
+  | Ap (e1, e2) -> fprintf f "@[<2>(Ap@ @[<hv 2>%a@ %a@])@]" format_mexp e1 format_mexp e2
   | Abs (x, e) ->
-    fprintf f "(@[<1>Abs@ @[<1>%s@ %a@]@])" (Symbol.name (Mark.obj x)) format_mexp e
+    fprintf f "@[<2>(Abs@ @[<hv 2>%s@ %a@])@]" (Symbol.name (Mark.obj x)) format_mexp e
   | Let (x, e1, e2) ->
     fprintf
       f
-      "(Let @[<v>%s %a@,%a@])"
+      "@[<v>(Let %s %a@,%a)@]"
       (Symbol.name (Mark.obj x))
       format_mexp
       e1
@@ -43,4 +43,4 @@ let rec format_mexp f mexp =
       e2
 ;;
 
-let format f e = fprintf f "%a@." format_mexp e
+let format = format_mexp

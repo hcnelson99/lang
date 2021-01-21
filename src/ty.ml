@@ -67,9 +67,9 @@ let to_string_custom ~var_to_string t =
   let rec go t =
     match Find.find t with
     | Var v -> var_to_string v
-    | Arrow (t1, t2) -> [%string "(%{go t1} -> %{go t2})"]
+    | Arrow (t1, t2) -> [%string "%{go_paren t1} -> %{go_paren t2}"]
     | Int -> "Int"
-  in
+  and go_paren t = "(" ^ go t ^ ")" in
   go t
 ;;
 

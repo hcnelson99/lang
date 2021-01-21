@@ -1,7 +1,11 @@
 open Core
 
 module Ty = struct
-  module Var = Uid.Make ()
+  module Var = struct
+    include Uid.Make ()
+
+    let to_string t = "t" ^ to_string t
+  end
 
   module T = struct
     type t =
@@ -30,7 +34,16 @@ module Ty = struct
   let rec to_string = function
     | Int -> "Int"
     | Var v -> Var.to_string v
-    | Arrow (t1, t2) -> [%string "(%{to_string t1} -> %{to_string t2})"]
+    | Arrow (t1, t2) -> [%string "%{to_string_paren t1} -> %{to_string_paren t2}"]
+
+  and to_string_paren t =
+    let parenthesize =
+      match t with
+      | Int | Var _ -> false
+      | Arrow _ -> true
+    in
+    let res = to_string t in
+    if parenthesize then "(" ^ res ^ ")" else res
   ;;
 end
 
@@ -71,18 +84,33 @@ let rec map_ty ~f (ty, exp) =
     | Let (v, e1, e2) -> Let (v, map_ty ~f e1, map_ty ~f e2) )
 ;;
 
-let string_of_tyexp_custom ~ty_to_string e =
-  let rec go (ty, exp) =
-    let ty_str = ty_to_string ty in
+open Caml.Format
+
+let format_tyexp_custom ~ty_to_string f e =
+  let rec go f exp =
     match exp with
-    | Var v -> [%string "(%{Var.to_string v} : %{ty_str})"]
-    | Int i -> [%string "(%{i#Int} : %{ty_str})"]
-    | Ap (e1, e2) -> [%string "(%{go e1} %{go e2} : %{ty_str})"]
-    | Abs (x, e) -> [%string "((fun %{Var.to_string x} -> %{go e}) : %{ty_str})"]
-    | Let (x, e1, e2) ->
-      [%string "((let %{Var.to_string x} = %{go e1} in %{go e2}) : %{ty_str})"]
+    | Var v -> fprintf f "%s" (Var.to_string v)
+    | Int i -> fprintf f "%d" i
+    | Ap (e1, e2) -> fprintf f "@[<hov 4>%a@ %a@]" go_ty e1 go_ty e2
+    | Abs (x, e) -> fprintf f "@[<4>fun %s ->@ %a@]" (Var.to_string x) go_ty e
+    (* We don't show the let's type since we assume it's correct *)
+    | Let (x, (ty, e1), (_, e2)) ->
+      fprintf
+        f
+        "@[<v>let %s : %s = %a in@ %a@]"
+        (Var.to_string x)
+        (ty_to_string ty)
+        go
+        e1
+        go
+        e2
+  and go_ty f (ty, exp) =
+    match exp with
+    | Int _ -> go f exp
+    | Var _ | Ap _ | Abs _ | Let _ ->
+      fprintf f "@[<hv>(%a@ : %s)@]" go exp (ty_to_string ty)
   in
-  go e
+  go_ty f e
 ;;
 
-let string_of_tyexp = string_of_tyexp_custom ~ty_to_string:Ty.to_string
+let format = format_tyexp_custom ~ty_to_string:Ty.to_string

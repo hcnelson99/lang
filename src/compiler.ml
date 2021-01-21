@@ -11,11 +11,11 @@ let main ~fname =
       lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = fname };
       try
         let ast = compile lexbuf in
-        Ast.format Caml.Format.std_formatter ast;
+        Caml.Format.printf "%a@." Ast.format ast;
         let hexp = Typechecker.typecheck ast in
-        print_endline (Hir.string_of_tyexp hexp);
+        Caml.Format.printf "%a@." Hir.format hexp;
         let hexp_mono = Monomorphize.monomorphize hexp in
-        print_endline (Hir.string_of_tyexp hexp_mono)
+        Caml.Format.printf "%a@." Hir.format hexp_mono
       with
       | Error_msg.Error e -> prerr_endline (Error_msg.error_to_string e))
 ;;

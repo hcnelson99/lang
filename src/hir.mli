@@ -41,5 +41,10 @@ val map_ty : f:('a -> 'b) -> 'a tyexp -> 'b tyexp
 
 type program = Ty.t tyexp
 
-val string_of_tyexp_custom : ty_to_string:('a -> string) -> 'a tyexp -> string
-val string_of_tyexp : program -> string
+val format_tyexp_custom
+  :  ty_to_string:('a -> string)
+  -> Format.formatter
+  -> 'a tyexp
+  -> unit
+
+val format : Format.formatter -> program -> unit
