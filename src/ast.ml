@@ -31,6 +31,11 @@ let rec format_mexp f mexp =
       e1
       format_mexp
       e2
+  | Split (e1, is, e2) ->
+    let vars =
+      is |> List.map ~f:(fun x -> Symbol.name (Mark.obj x)) |> String.concat ~sep:", "
+    in
+    fprintf f "@[<v>(Split %a (%s)@,%a)@]" format_mexp e1 vars format_mexp e2
 ;;
 
 let format = format_mexp

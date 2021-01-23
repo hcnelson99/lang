@@ -2,6 +2,8 @@ open! Core
 
 type t
 
+val to_string : t -> string
+
 module Constructor : sig
   type t =
     | Int

@@ -1,3 +1,2 @@
-let id = fun x -> x in
-let f = fun x -> fun y -> (id (x, y), id (y, x)) in
-(f 1 true, f true 1)
+let f = fun t -> let x = t in x in
+(f (1, true), f (true, 1))

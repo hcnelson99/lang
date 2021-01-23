@@ -41,35 +41,38 @@ module Find = struct
   ;;
 end
 
-(* let to_string_custom ~var_to_string t = *)
-(*   let rec go t = *)
-(*     match Find.find t with *)
-(*     | Var v -> var_to_string v *)
-(*     | Constructor (Arrow, [ t1; t2 ]) -> [%string "%{go_paren t1} -> %{go_paren t2}"] *)
-(*     | Constructor (Arrow, _) -> failwith "invalid arrow arity" *)
-(*     | Constructor (Int, []) -> "Int" *)
-(*     | Constructor (Int, _) -> failwith "invalid int arity" *)
-(*     | Constructor (Bool, []) -> "Bool" *)
-(*     | Constructor (Bool, _) -> failwith "invalid bool arity" *)
-(*   and go_paren t = "(" ^ go t ^ ")" in *)
-(*   go t *)
-(* ;; *)
+let to_string_custom ~var_to_string t =
+  let rec go t =
+    match Find.find t with
+    | Var v -> var_to_string v
+    | Constructor (Arrow, [ t1; t2 ]) -> [%string "%{go_paren t1} -> %{go_paren t2}"]
+    | Constructor (Arrow, _) -> failwith "invalid arrow arity"
+    | Constructor (Int, []) -> "Int"
+    | Constructor (Int, _) -> failwith "invalid int arity"
+    | Constructor (Bool, []) -> "Bool"
+    | Constructor (Bool, _) -> failwith "invalid bool arity"
+    | Constructor (Tuple, []) -> "()"
+    | Constructor (Tuple, ts) ->
+      "(" ^ (ts |> List.map ~f:go |> String.concat ~sep:" * ") ^ ")"
+  and go_paren t = "(" ^ go t ^ ")" in
+  go t
+;;
 
 (* let to_string_debug = to_string *)
 
-(* let to_string t = *)
-(*   let var_to_string = *)
-(*     let names = Table.create () in *)
-(*     let next_name = ref 'a' in *)
-(*     let new_name () = *)
-(*       let res = !next_name in *)
-(*       next_name := Char.of_int_exn (Char.to_int res + 1); *)
-(*       "'" ^ Char.to_string res *)
-(*     in *)
-(*     Hashtbl.find_or_add names ~default:new_name *)
-(*   in *)
-(*   to_string_custom ~var_to_string t *)
-(* ;; *)
+let to_string t =
+  let var_to_string =
+    let names = Table.create () in
+    let next_name = ref 'a' in
+    let new_name () =
+      let res = !next_name in
+      next_name := Char.of_int_exn (Char.to_int res + 1);
+      "'" ^ Char.to_string res
+    in
+    Hashtbl.find_or_add names ~default:new_name
+  in
+  to_string_custom ~var_to_string t
+;;
 
 let rec is_poly t =
   match Find.find t with

@@ -55,7 +55,9 @@ let rec infer (ctx : context) (e : Ast.mexp) =
 let typecheck ast =
   let ctx = Symbol.Map.empty in
   let ((ty, _) as hir) = infer ctx ast in
-  if Ty.is_poly ty
-  then raise (TypeError "Program must not be polymorphic at the top level")
-  else Hir.map_ty ~f:Ty.to_hir_ty hir
+  print_endline (Ty.to_string ty);
+  (* if Ty.is_poly ty *)
+  (* then raise (TypeError "Program must not be polymorphic at the top level") *)
+  (* else  *)
+  Hir.map_ty ~f:Ty.to_hir_ty hir
 ;;

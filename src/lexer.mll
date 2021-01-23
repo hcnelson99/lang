@@ -20,6 +20,8 @@ rule initial = parse
     | ',' { T.Comma }
     | "->" { T.Arrow }
     | "fun" { T.Fun }
+    | "split" { T.Split }
+    | "with" { T.With }
     | "let" { T.Let }
     | "true" { T.True }
     | "false" { T.False }

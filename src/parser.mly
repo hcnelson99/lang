@@ -10,7 +10,7 @@ let mark data start_pos end_pos =
 %token True False
 %token <int> Int_literal
 %token <Symbol.t> Ident
-%token Fun Let Equal Arrow In
+%token Fun Let Equal Arrow In Split With
 
 %type <Ast.mexp> program
 
@@ -47,10 +47,14 @@ exp_ap :
 
 exp_fun :
   | e = exp_ap; { e }
-  | Fun; i = m(Ident); Arrow; e = m(exp_fun); { Ast.Abs (i, e) }
+  | Fun; i = m(Ident); Arrow; e = m(exp); { Ast.Abs (i, e) }
 
+split_tuple_list : 
+  | (* empty *) { [] }
+  | i = m(Ident); Comma; is = split_tuple_list; { i::is }
 
 exp : 
   | e = exp_fun; { e }
   | Let; i = m(Ident); Equal; e1 = m(exp); In; e2 = m(exp); { Ast.Let (i, e1, e2) }
+  | Split; e1 = m(exp); With; LParen; is = split_tuple_list; RParen; In; e2 = m(exp); { Ast.Split (e1, is, e2) }
 

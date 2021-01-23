@@ -13,6 +13,7 @@ module S = struct
     | Ap of mexp * mexp
     | Abs of msym * mexp
     | Let of msym * mexp * mexp
+    | Split of mexp * msym list * mexp
 
   type program = mexp
 end
