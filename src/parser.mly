@@ -50,7 +50,7 @@ exp_fun :
   | Fun; i = m(Ident); Arrow; e = m(exp); { Ast.Abs (i, e) }
 
 split_tuple_list : 
-  | (* empty *) { [] }
+  | i = m(Ident) { [i] }
   | i = m(Ident); Comma; is = split_tuple_list; { i::is }
 
 exp : 

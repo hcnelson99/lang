@@ -58,6 +58,7 @@ let monomorphize e =
         ty, Hir.Var (Hashtbl.find_or_add insts ty ~default))
     | Hir.Ap (e1, e2) -> ty, Hir.Ap (go e1, go e2)
     | Hir.Tuple es -> ty, Hir.Tuple (List.map ~f:go es)
+    | Hir.Split (e1, vs, e2) -> ty, Hir.Split (go e1, vs, go e2)
     | Hir.Abs (v, e) -> ty, Hir.Abs (v, go e)
     | Hir.Let (v, ((e1_ty, _) as e1), e2) ->
       let insts = Hir.Ty.Table.create () in

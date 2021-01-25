@@ -1,2 +1,2 @@
-let f = fun t -> let x = t in x in
-(f (1, true), f (true, 1))
+let f = fun x -> split x with (x, y) in (y, x) in
+f (1, true)

@@ -41,6 +41,7 @@ type 'a exp =
   | Int of int
   | Bool of bool
   | Tuple of 'a tyexp list
+  | Split of 'a tyexp * Var.t list * 'a tyexp
   | Ap of 'a tyexp * 'a tyexp
   | Abs of Var.t * 'a tyexp
   | Let of Var.t * 'a tyexp * 'a tyexp

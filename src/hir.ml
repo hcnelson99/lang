@@ -89,6 +89,7 @@ type 'a exp =
   | Int of int
   | Bool of bool
   | Tuple of 'a tyexp list
+  | Split of 'a tyexp * Var.t list * 'a tyexp
   | Ap of 'a tyexp * 'a tyexp
   | Abs of Var.t * 'a tyexp
   | Let of Var.t * 'a tyexp * 'a tyexp
@@ -104,6 +105,7 @@ let rec map_ty ~f (ty, exp) =
     | Int i -> Int i
     | Bool b -> Bool b
     | Tuple ts -> Tuple (List.map ~f:(map_ty ~f) ts)
+    | Split (e1, vs, e2) -> Split (map_ty ~f e1, vs, map_ty ~f e2)
     | Ap (e1, e2) -> Ap (map_ty ~f e1, map_ty ~f e2)
     | Abs (v, e) -> Abs (v, map_ty ~f e)
     | Let (v, e1, e2) -> Let (v, map_ty ~f e1, map_ty ~f e2) )
@@ -125,6 +127,16 @@ let format_tyexp_custom ~ty_to_string f e =
         fprintf f "@[(%a" go_ty t;
         List.iter ts ~f:(fun t -> fprintf f ",@ %a" go_ty t);
         fprintf f "@,)@]")
+    | Split ((ty, e1), vs, (_, e2)) ->
+      fprintf
+        f
+        "@[<v>split @[<4>%a@ :@ %s with@ %s@] in@ %a@]"
+        go
+        e1
+        (ty_to_string ty)
+        ("(" ^ (vs |> List.map ~f:Var.to_string |> String.concat ~sep:", ") ^ ")")
+        go
+        e2
     | Ap (e1, e2) -> fprintf f "@[<hov 4>%a@ %a@]" go_ty e1 go_ty e2
     | Abs (x, e) -> fprintf f "@[<4>fun %s ->@ %a@]" (Var.to_string x) go_ty e
     (* We don't show the let's type since we assume it's correct *)
@@ -141,7 +153,7 @@ let format_tyexp_custom ~ty_to_string f e =
   and go_ty f (ty, exp) =
     match exp with
     | Int _ | Bool _ -> go f exp
-    | Var _ | Ap _ | Abs _ | Let _ | Tuple _ ->
+    | Var _ | Ap _ | Abs _ | Let _ | Tuple _ | Split _ ->
       fprintf f "@[<hv>(%a@ : %s)@]" go exp (ty_to_string ty)
   in
   go_ty f e
