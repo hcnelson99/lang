@@ -23,6 +23,7 @@ module Ty : sig
   val is_poly : t -> bool
   val free_vars : t -> Var.t list
   val to_string : t -> string
+  val to_string_hum : t -> string
 end
 
 module Var : sig

@@ -12,7 +12,7 @@ let rec is_syntactic_value e =
   match Mark.obj e with
   | Ast.Var _ | Ast.Bool _ | Ast.Int _ | Ast.Abs _ -> true
   | Ast.Tuple ts -> List.fold ~init:true ~f:(fun b x -> b && is_syntactic_value x) ts
-  (* Is splitting a syntactic value? Probably not but idk *)
+  (* Is splitting a syntactic value? Probably not but idk. maybe it should be??? *)
   | Ast.Split _ | Ast.Ap _ | Ast.Let _ -> false
 ;;
 
@@ -83,10 +83,6 @@ let rec infer (ctx : context) (e : Ast.mexp) =
 
 let typecheck ast =
   let ctx = Symbol.Map.empty in
-  let ((ty, _) as hir) = infer ctx ast in
-  print_endline (Ty.to_string ty);
-  (* if Ty.is_poly ty *)
-  (* then raise (TypeError "Program must not be polymorphic at the top level") *)
-  (* else  *)
+  let hir = infer ctx ast in
   Hir.map_ty ~f:Ty.to_hir_ty hir
 ;;

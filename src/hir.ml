@@ -37,20 +37,21 @@ module Ty = struct
     | Constructor (_, ts) -> List.concat_map ~f:free_vars ts
   ;;
 
-  let rec to_string = function
+  let rec to_string_custom ~var_to_string = function
     | Constructor (Int, []) -> "Int"
     | Constructor (Int, _) -> failwith "invalid int arity"
     | Constructor (Bool, []) -> "Bool"
     | Constructor (Bool, _) -> failwith "invalid bool arity"
-    | Var v -> Var.to_string v
+    | Var v -> var_to_string v
     | Constructor (Tuple, []) -> "unit"
     | Constructor (Tuple, ts) ->
-      List.map ~f:to_string_paren ts |> String.concat ~sep:" * "
+      List.map ~f:(to_string_paren ~var_to_string) ts |> String.concat ~sep:" * "
     | Constructor (Arrow, [ t1; t2 ]) ->
-      [%string "%{to_string_paren t1} -> %{to_string_paren t2}"]
+      [%string
+        "%{(to_string_paren ~var_to_string) t1} -> %{(to_string_paren ~var_to_string) t2}"]
     | Constructor (Arrow, _) -> failwith "invalid arrow arity"
 
-  and to_string_paren t =
+  and to_string_paren ~var_to_string t =
     let parenthesize =
       match t with
       | Var _ -> false
@@ -63,8 +64,24 @@ module Ty = struct
           | [] -> false
           | _ -> true))
     in
-    let res = to_string t in
+    let res = to_string_custom ~var_to_string t in
     if parenthesize then "(" ^ res ^ ")" else res
+  ;;
+
+  let to_string = to_string_custom ~var_to_string:Var.to_string
+
+  let to_string_hum t =
+    let var_to_string =
+      let names = Var.Table.create () in
+      let next_name = ref 'a' in
+      let new_name () =
+        let res = !next_name in
+        next_name := Char.of_int_exn (Char.to_int res + 1);
+        "'" ^ Char.to_string res
+      in
+      Hashtbl.find_or_add names ~default:new_name
+    in
+    to_string_custom ~var_to_string t
   ;;
 end
 
