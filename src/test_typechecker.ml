@@ -54,3 +54,14 @@ let%expect_test _ =
   |};
   [%expect {| ('b * 'a) -> ('a * 'b) |}]
 ;;
+
+let%expect_test _ =
+  typecheck_test
+    {|
+  let f = fun x ->
+    let g = fun y -> (y, x) in
+    g 1 in
+  f 1
+  |};
+  [%expect {| Int * Int |}]
+;;
