@@ -18,8 +18,6 @@ val constructor : Constructor.t -> t list -> t
 val is_poly : t -> bool
 
 module Union_find : sig
-  exception Unification_error
-
   val unify : t -> t -> unit
 
   (* Reinstantiate a polymorphic type *)

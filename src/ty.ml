@@ -82,8 +82,6 @@ let rec is_poly t =
 ;;
 
 module Union_find = struct
-  exception Unification_error
-
   (* TODO: check for circularity *)
   let rec unify t0 t1 =
     match Find.find t0, Find.find t1 with
@@ -94,7 +92,7 @@ module Union_find = struct
         | List.Or_unequal_lengths.Unequal_lengths ->
           failwith "ICE: equal constructors with different arities?"
         | List.Or_unequal_lengths.Ok z -> List.iter z ~f:(fun (x, y) -> unify x y))
-      else raise Unification_error
+      else raise (Compile_error.Error "unification error")
     | Find.Var v1, Find.Var v2 -> Hashtbl.set union_find_table ~key:v1 ~data:(Link v2)
     | Find.Var v, _ -> Hashtbl.set union_find_table ~key:v ~data:(Link t1)
     | _, Find.Var v -> Hashtbl.set union_find_table ~key:v ~data:(Link t0)

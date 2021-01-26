@@ -6,8 +6,6 @@ type bound =
 
 type context = (Hir.Var.t * bound * Ty.t) Symbol.Map.t
 
-exception TypeError of string
-
 let rec is_syntactic_value e =
   match Mark.obj e with
   | Ast.Var _ | Ast.Bool _ | Ast.Int _ | Ast.Abs _ -> true
@@ -22,7 +20,7 @@ let check_sym_list_for_dups xs =
   |> List.map ~f:Mark.obj
   |> List.iter ~f:(fun x ->
          match Hashtbl.add table ~key:x ~data:() with
-         | `Duplicate -> raise (TypeError "dup in sym list")
+         | `Duplicate -> raise (Compile_error.Error "dup in sym list")
          | `Ok -> ())
 ;;
 
@@ -30,7 +28,7 @@ let rec infer (ctx : context) (e : Ast.mexp) =
   match Mark.obj e with
   | Var x ->
     (match Symbol.Map.find ctx x with
-    | None -> raise (TypeError "var not in ctx")
+    | None -> raise (Compile_error.Error "var not in ctx")
     | Some (v, Let_bound, ty) -> Ty.Union_find.instantiate ty, Hir.Var v
     | Some (v, Fun_bound, ty) -> ty, Hir.Var v)
   | Int i -> Ty.constructor Ty.Constructor.Int [], Hir.Int i
