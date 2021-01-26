@@ -22,11 +22,9 @@ let%expect_test _ =
 
 let%expect_test _ =
   typecheck_test {|
-  let f = fun x -> x in
-  let g = fun x -> f x in
-  (f, g)
+  (fun x -> x, fun x -> x)
   |};
-  [%expect {| ('a -> 'a) * ('a -> 'a) |}]
+  [%expect {| ('a -> 'a) * ('b -> 'b) |}]
 ;;
 
 let%expect_test _ =
