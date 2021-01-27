@@ -50,7 +50,7 @@ let%expect_test _ =
 
 let%expect_test _ =
   typecheck_test {|
-  fun x -> split x with (x, y) in (y, x)
+  fun x -> split x as (x, y) in (y, x)
   |};
   [%expect {| ('b * 'a) -> ('a * 'b) |}]
 ;;

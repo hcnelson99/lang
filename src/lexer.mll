@@ -21,7 +21,7 @@ rule initial = parse
     | "->" { T.Arrow }
     | "fun" { T.Fun }
     | "split" { T.Split }
-    | "with" { T.With }
+    | "as" { T.As }
     | "let" { T.Let }
     | "true" { T.True }
     | "false" { T.False }
