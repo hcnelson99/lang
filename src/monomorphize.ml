@@ -39,7 +39,10 @@ let map_poly_type_to_mono_type poly_ty mono_ty =
 let specialize mapping e =
   let rec f t =
     match t with
-    | Hir.Ty.Var v -> Hashtbl.find_exn mapping v
+    | Hir.Ty.Var v ->
+      (match Hashtbl.find mapping v with
+      | None -> Hir.Ty.Var v
+      | Some x -> x)
     | Hir.Ty.Constructor (c, ts) -> Hir.Ty.Constructor (c, List.map ~f ts)
   in
   Hir.map_ty ~f e

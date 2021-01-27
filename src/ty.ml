@@ -11,10 +11,12 @@ type data =
   | Constructor of Constructor.t * t list
 
 let union_find_table : data Table.t = Table.create ()
+let let_depth_table : int Table.t = Table.create ()
 
-let unconstrained () =
+let unconstrained ~let_depth =
   let ty = create () in
   Hashtbl.add_exn union_find_table ~key:ty ~data:Self;
+  Hashtbl.add_exn let_depth_table ~key:ty ~data:let_depth;
   ty
 ;;
 
@@ -58,7 +60,7 @@ let to_string_custom ~var_to_string t =
   go t
 ;;
 
-(* let to_string_debug = to_string *)
+let to_string_debug t = "t" ^ to_string t
 
 let to_string t =
   let var_to_string =
@@ -98,14 +100,17 @@ module Union_find = struct
     | _, Find.Var v -> Hashtbl.set union_find_table ~key:v ~data:(Link t0)
   ;;
 
-  let instantiate t =
+  let instantiate ~var_let_depth t =
     let find_or_create =
       let table = Table.create () in
-      Hashtbl.find_or_add table ~default:unconstrained
+      Hashtbl.find_or_add table ~default:(fun () ->
+          unconstrained ~let_depth:var_let_depth)
     in
     let rec go t =
       match Find.find t with
-      | Find.Var t -> find_or_create t
+      | Find.Var t ->
+        let ty_depth = Hashtbl.find_exn let_depth_table t in
+        if Int.(ty_depth > var_let_depth) then find_or_create t else t
       | Find.Constructor (c, ts) -> constructor c (List.map ~f:go ts)
     in
     go t

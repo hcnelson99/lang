@@ -1,2 +1,4 @@
-let f = fun x -> split x with (x, y) in (y, x) in
-f (1, true)
+let f = fun x ->
+    let g = fun y -> (y, x) in
+    (g 1, g true) in
+(f true, f 1)
