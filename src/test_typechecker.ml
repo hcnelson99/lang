@@ -9,56 +9,86 @@ let typecheck_test program =
     |> List.iter ~f:(fun stmt ->
            match stmt with
            | LetStmt (v, (ty, _)) ->
-             print_endline (Hir.Var.to_string v ^ " : " ^ Hir.Ty.to_string_hum ty))
+             print_endline (Hir.Var.to_string_hum v ^ " : " ^ Hir.Ty.to_string_hum ty))
   with
   | Compile_error.Error s -> print_endline ("Error: " ^ s)
+  | Parser.Error ->
+    print_endline (Error_msg.error ~msg:"Parse error" lexbuf |> Error_msg.error_to_string)
 ;;
 
 let%expect_test _ =
   typecheck_test {|
-  fun x -> x
+  let id = fun x -> x
+  end
   |};
-  [%expect {| 'a -> 'a |}]
+  [%expect {| id : 'a -> 'a |}]
 ;;
 
 let%expect_test "generalization" =
   typecheck_test {|
-  let f = fun x -> x in
-  (f 1, f true)
+  let f = fun x -> x
+  end
+  let v = (f 1, f true)
+  end
   |};
-  [%expect {| Int * Bool |}]
+  [%expect {|
+    f : 'a -> 'a
+    v : Int * Bool |}]
 ;;
 
 let%expect_test "value restriction" =
-  typecheck_test {|
-  let id = fun x -> x in
-  let f = id id in
-  (f 1, f true)
+  typecheck_test
+    {|
+  let exp = 
+    let id = fun x -> x in
+    let f = id id in
+    (f 1, f true)
+  end
   |};
   [%expect {| Error: unification error |}]
 ;;
 
 let%expect_test _ =
-  typecheck_test {|
-  let id = fun x -> x in
-  let f = id id in
-  f 1
+  typecheck_test
+    {|
+  let exp =
+    let id = fun x -> x in
+    let f = id id in
+    f 1
+  end
   |};
-  [%expect {| Int |}]
+  [%expect {| exp : Int |}]
 ;;
 
 let%expect_test _ =
   typecheck_test {|
-  (fun x -> x, fun x -> x)
+  let exp = 
+    (fun x -> x, fun x -> x)
+  end
   |};
-  [%expect {| ('a -> 'a) * ('b -> 'b) |}]
+  [%expect {| exp : ('a -> 'a) * ('b -> 'b) |}]
 ;;
 
 let%expect_test _ =
   typecheck_test {|
-  fun x -> split x as (x, y) in (y, x)
+  let f =
+    fun x -> split x as (x, y) in (y, x)
+  end
   |};
-  [%expect {| ('b * 'a) -> ('a * 'b) |}]
+  [%expect {| f : ('b * 'a) -> ('a * 'b) |}]
+;;
+
+let%expect_test _ =
+  typecheck_test
+    {|
+  let exp =
+    let f = fun x ->
+      let g = fun y -> (y, x) in
+      g 1 in
+    f 1
+  end
+  |};
+  [%expect {| exp : Int * Int |}]
 ;;
 
 let%expect_test _ =
@@ -66,19 +96,8 @@ let%expect_test _ =
     {|
   let f = fun x ->
     let g = fun y -> (y, x) in
-    g 1 in
-  f 1
+    (g 1, g true)
+  end
   |};
-  [%expect {| Int * Int |}]
-;;
-
-let%expect_test _ =
-  typecheck_test
-    {|
-  let f = fun x ->
-    let g = fun y -> (y, x) in
-    (g 1, g true) in
-  f
-  |};
-  [%expect {| 'a -> ((Int * 'a) * (Bool * 'a)) |}]
+  [%expect {| f : 'a -> ((Int * 'a) * (Bool * 'a)) |}]
 ;;

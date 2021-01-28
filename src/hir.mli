@@ -34,6 +34,7 @@ module Var : sig
 
   val create : string -> t
   val to_string : t -> string
+  val to_string_hum : t -> string
   val name : t -> string
 end
 

@@ -98,6 +98,7 @@ module Var = struct
 
   let create n = n, Id.create ()
   let to_string (n, id) = n ^ "#" ^ Id.to_string id
+  let to_string_hum (n, _) = n
   let name (n, _) = n
 end
 
