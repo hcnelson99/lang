@@ -50,46 +50,48 @@ let specialize mapping e =
 
 let monomorphize program =
   let table = Hir.Var.Table.create () in
-  let monomorphize_exp e =
-    let rec go ((ty, e) as tyexp) =
-      match e with
-      | Hir.Int _ | Hir.Bool _ -> tyexp
-      | Hir.Var v ->
-        (match Hashtbl.find table v with
-        | None -> tyexp
-        | Some insts ->
-          let default () = Hir.Var.create (Hir.Var.name v) in
-          ty, Hir.Var (Hashtbl.find_or_add insts ty ~default))
-      | Hir.Ap (e1, e2) -> ty, Hir.Ap (go e1, go e2)
-      | Hir.Tuple es -> ty, Hir.Tuple (List.map ~f:go es)
-      | Hir.Split (e1, vs, e2) -> ty, Hir.Split (go e1, vs, go e2)
-      | Hir.Abs (v, e) -> ty, Hir.Abs (v, go e)
-      | Hir.Let (v, ((e1_ty, _) as e1), e2) ->
-        let insts = Hir.Ty.Table.create () in
-        Hashtbl.set table ~key:v ~data:insts;
-        let ((e2_ty, _) as init) = go e2 in
-        Hashtbl.fold insts ~init ~f:(fun ~key:inst_ty ~data:inst_v e ->
-            let mapping = map_poly_type_to_mono_type e1_ty inst_ty in
-            let e1' = specialize mapping e1 in
-            e2_ty, Hir.Let (inst_v, go e1', e))
-    in
-    go e
+  let new_instantiable_var v =
+    let insts = Hir.Ty.Table.create () in
+    Hashtbl.set table ~key:v ~data:insts;
+    insts
+  in
+  let rec specializations insts ((e_ty, _) as e) =
+    insts
+    |> Hashtbl.to_alist
+    |> List.map ~f:(fun (inst_ty, inst_v) ->
+           let mapping = map_poly_type_to_mono_type e_ty inst_ty in
+           let e' = specialize mapping e in
+           inst_v, monomorphize_exp e')
+  and monomorphize_exp ((ty, e) as tyexp) =
+    match e with
+    | Hir.Int _ | Hir.Bool _ -> tyexp
+    | Hir.Var v ->
+      (match Hashtbl.find table v with
+      | None -> tyexp
+      | Some insts ->
+        let default () = Hir.Var.create (Hir.Var.name v) in
+        ty, Hir.Var (Hashtbl.find_or_add insts ty ~default))
+    | Hir.Ap (e1, e2) -> ty, Hir.Ap (monomorphize_exp e1, monomorphize_exp e2)
+    | Hir.Tuple es -> ty, Hir.Tuple (List.map ~f:monomorphize_exp es)
+    | Hir.Split (e1, vs, e2) ->
+      ty, Hir.Split (monomorphize_exp e1, vs, monomorphize_exp e2)
+    | Hir.Abs (v, e) -> ty, Hir.Abs (v, monomorphize_exp e)
+    | Hir.Let (v, e1, e2) ->
+      let insts = new_instantiable_var v in
+      let ((e2_ty, _) as init) = monomorphize_exp e2 in
+      specializations insts e1
+      |> List.fold ~init ~f:(fun e (inst_v, inst_e) -> e2_ty, Hir.Let (inst_v, inst_e, e))
   in
   let rec monomorphize_stmts = function
     | [] -> []
     | s :: ss ->
       (match s with
-      | Hir.LetStmt (v, ((e_ty, _) as e)) ->
-        let insts = Hir.Ty.Table.create () in
-        Hashtbl.set table ~key:v ~data:insts;
+      | Hir.LetStmt (v, e) ->
+        let insts = new_instantiable_var v in
         let ss' = monomorphize_stmts ss in
         let cloned_lets =
-          insts
-          |> Hashtbl.to_alist
-          |> List.map ~f:(fun (inst_ty, inst_v) ->
-                 let mapping = map_poly_type_to_mono_type e_ty inst_ty in
-                 let e' = specialize mapping e in
-                 Hir.LetStmt (inst_v, monomorphize_exp e'))
+          specializations insts e
+          |> List.map ~f:(fun (inst_v, inst_e) -> Hir.LetStmt (inst_v, inst_e))
         in
         cloned_lets @ ss')
   in
