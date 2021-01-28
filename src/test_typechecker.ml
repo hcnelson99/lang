@@ -1,9 +1,15 @@
+open Core
+
 let typecheck_test program =
   let lexbuf = Lexing.from_string program in
   let ast = Parser.program Lexer.initial lexbuf in
   try
-    let ty, _ = Typechecker.typecheck ast in
-    print_endline (Hir.Ty.to_string_hum ty)
+    ast
+    |> Typechecker.typecheck
+    |> List.iter ~f:(fun stmt ->
+           match stmt with
+           | LetStmt (v, (ty, _)) ->
+             print_endline (Hir.Var.to_string v ^ " : " ^ Hir.Ty.to_string_hum ty))
   with
   | Compile_error.Error s -> print_endline ("Error: " ^ s)
 ;;

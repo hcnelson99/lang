@@ -38,4 +38,15 @@ let rec format_mexp f mexp =
     fprintf f "@[<v>(Split %a (%s)@,%a)@]" format_mexp e1 vars format_mexp e2
 ;;
 
-let format = format_mexp
+let format_mstmt f mstmt =
+  match Mark.obj mstmt with
+  | LetStmt (x, e) ->
+    fprintf f "@[<v>(LetStmt %s@,%a)]" (Symbol.name (Mark.obj x)) format_mexp e
+;;
+
+let rec format f = function
+  | [] -> ()
+  | s :: ss ->
+    format_mstmt f s;
+    format f ss
+;;

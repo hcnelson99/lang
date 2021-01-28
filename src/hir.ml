@@ -113,24 +113,29 @@ type 'a exp =
 
 and 'a tyexp = 'a * 'a exp
 
-type program = Ty.t tyexp
+type 'a stmt = LetStmt of Var.t * 'a tyexp
+type program = Ty.t stmt list
 
-let rec map_ty ~f (ty, exp) =
+let rec map_exp ~f (ty, exp) =
   ( f ty
   , match exp with
     | Var v -> Var v
     | Int i -> Int i
     | Bool b -> Bool b
-    | Tuple ts -> Tuple (List.map ~f:(map_ty ~f) ts)
-    | Split (e1, vs, e2) -> Split (map_ty ~f e1, vs, map_ty ~f e2)
-    | Ap (e1, e2) -> Ap (map_ty ~f e1, map_ty ~f e2)
-    | Abs (v, e) -> Abs (v, map_ty ~f e)
-    | Let (v, e1, e2) -> Let (v, map_ty ~f e1, map_ty ~f e2) )
+    | Tuple ts -> Tuple (List.map ~f:(map_exp ~f) ts)
+    | Split (e1, vs, e2) -> Split (map_exp ~f e1, vs, map_exp ~f e2)
+    | Ap (e1, e2) -> Ap (map_exp ~f e1, map_exp ~f e2)
+    | Abs (v, e) -> Abs (v, map_exp ~f e)
+    | Let (v, e1, e2) -> Let (v, map_exp ~f e1, map_exp ~f e2) )
+;;
+
+let map_stmt ~f = function
+  | LetStmt (v, e) -> LetStmt (v, map_exp ~f e)
 ;;
 
 open Caml.Format
 
-let format_tyexp_custom ~ty_to_string f e =
+let format_tyexp ~ty_to_string f e =
   let rec go f exp =
     match exp with
     | Var v -> fprintf f "%s" (Var.to_string v)
@@ -176,4 +181,17 @@ let format_tyexp_custom ~ty_to_string f e =
   go_ty f e
 ;;
 
-let format = format_tyexp_custom ~ty_to_string:Ty.to_string
+let format_stmt ~ty_to_string f = function
+  | LetStmt (v, e) ->
+    fprintf f "@[<v>let %s = %a@,end@]" (Var.to_string v) (format_tyexp ~ty_to_string) e
+;;
+
+let format_stmts ~ty_to_string f stmts =
+  fprintf f "@[<v>";
+  List.iter stmts ~f:(fun stmt ->
+      format_stmt ~ty_to_string f stmt;
+      fprintf f "@,");
+  fprintf f "@]"
+;;
+
+let format = format_stmts ~ty_to_string:Ty.to_string

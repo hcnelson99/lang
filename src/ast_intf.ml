@@ -15,5 +15,17 @@ module S = struct
     | Let of msym * mexp * mexp
     | Split of mexp * msym list * mexp
 
-  type program = mexp
+  type mty = ty Mark.t
+
+  and ty =
+    | Int
+    | Bool
+
+  type mstmt = stmt Mark.t
+
+  and stmt = LetStmt of msym * mexp
+
+  (* | TypeStmt of msym * (msym * mty option) *)
+
+  type program = mstmt list
 end

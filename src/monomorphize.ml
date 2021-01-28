@@ -45,7 +45,7 @@ let specialize mapping e =
       | Some x -> x)
     | Hir.Ty.Constructor (c, ts) -> Hir.Ty.Constructor (c, List.map ~f ts)
   in
-  Hir.map_ty ~f e
+  Hir.map_exp ~f e
 ;;
 
 let monomorphize e =

@@ -1,4 +1,13 @@
-let f = fun x ->
-    let g = fun y -> (y, x) in
-    (g 1, g true) in
-(f true, f 1)
+type steven = shan of int | nothing of int * bool
+
+let x = 
+    let f = fun x ->
+        let g = fun y -> (y, x) in
+        let s = fun x -> split x as (a, b) in (b, a) in
+        (g 1, g true) in
+    (f true, f 1)
+
+type match = foo of int | bar of int * bool
+
+type foo = x of unit
+type foo = x 

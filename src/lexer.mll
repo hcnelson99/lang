@@ -23,6 +23,7 @@ rule initial = parse
     | "split" { T.Split }
     | "as" { T.As }
     | "let" { T.Let }
+    | "end" { T.End }
     | "true" { T.True }
     | "false" { T.False }
     | "in" { T.In }

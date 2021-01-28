@@ -49,14 +49,13 @@ type 'a exp =
 
 and 'a tyexp = 'a * 'a exp
 
-type program = Ty.t tyexp
+val map_exp : f:('a -> 'b) -> 'a tyexp -> 'b tyexp
 
-val map_ty : f:('a -> 'b) -> 'a tyexp -> 'b tyexp
+type 'a stmt = LetStmt of Var.t * 'a tyexp
 
-val format_tyexp_custom
-  :  ty_to_string:('a -> string)
-  -> Format.formatter
-  -> 'a tyexp
-  -> unit
+val map_stmt : f:('a -> 'b) -> 'a stmt -> 'b stmt
 
+type program = Ty.t stmt list
+
+val format_tyexp : ty_to_string:('a -> string) -> Format.formatter -> 'a tyexp -> unit
 val format : Format.formatter -> program -> unit
