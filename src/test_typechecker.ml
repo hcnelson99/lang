@@ -101,3 +101,20 @@ let%expect_test _ =
   |};
   [%expect {| f : 'a -> ((Int * 'a) * (Bool * 'a)) |}]
 ;;
+
+let%expect_test _ =
+  typecheck_test
+    {|
+  let f = fun x -> (x, x)
+  end
+  let g = fun y -> (f y, f 3)
+  end
+  let exp = (g true, g 1)
+  end
+  |};
+  [%expect
+    {|
+    f : 'a -> ('a * 'a)
+    g : 'a -> (('a * 'a) * (Int * Int))
+    exp : ((Bool * Bool) * (Int * Int)) * ((Int * Int) * (Int * Int)) |}]
+;;
