@@ -18,15 +18,24 @@ rule initial = parse
     | ')' { T.RParen }
     | '=' { T.Equal }
     | ',' { T.Comma }
+    | '|' { T.Bar }
+    | '*' { T.Star }
     | "->" { T.Arrow }
     | "fun" { T.Fun }
     | "split" { T.Split }
     | "as" { T.As }
+    | "type" { T.Type }
+    | "of" { T.Of }
+    | "match" { T.Match }
+    | "with" { T.With }
     | "let" { T.Let }
     | "end" { T.End }
     | "true" { T.True }
     | "false" { T.False }
     | "in" { T.In }
+    | "int" { T.Int }
+    | "bool" { T.Bool }
+    | "unit" { T.Unit }
     | ident as name { T.Ident (Symbol.create name) }
     | num as n { T.Int_literal (Int.of_string n) }
     | eof { T.Eof }

@@ -112,10 +112,10 @@ type 'a exp =
   | Abs of Var.t * 'a tyexp
   | Let of Var.t * 'a tyexp * 'a tyexp
 
-and 'a tyexp = 'a * 'a exp
+and 'a tyexp = 'a * 'a exp [@@deriving sexp]
 
-type 'a stmt = LetStmt of Var.t * 'a tyexp
-type program = Ty.t stmt list
+type 'a stmt = LetStmt of Var.t * 'a tyexp [@@deriving sexp]
+type program = Ty.t stmt list [@@deriving sexp]
 
 let rec map_exp ~f (ty, exp) =
   ( f ty
@@ -133,66 +133,3 @@ let rec map_exp ~f (ty, exp) =
 let map_stmt ~f = function
   | LetStmt (v, e) -> LetStmt (v, map_exp ~f e)
 ;;
-
-open Caml.Format
-
-let format_tyexp ~ty_to_string f e =
-  let rec go f exp =
-    match exp with
-    | Var v -> fprintf f "%s" (Var.to_string v)
-    | Int i -> fprintf f "%d" i
-    | Bool b -> fprintf f "%s" (Bool.to_string b)
-    | Tuple ts ->
-      (match ts with
-      | [] -> fprintf f "()"
-      | [ _ ] -> failwith "cannot have arity 1 tuple"
-      | t :: ts ->
-        fprintf f "@[(%a" go_ty t;
-        List.iter ts ~f:(fun t -> fprintf f ",@ %a" go_ty t);
-        fprintf f "@,)@]")
-    | Split ((ty, e1), vs, (_, e2)) ->
-      fprintf
-        f
-        "@[<v>split @[<4>%a@ :@ %s with@ %s@] in@ %a@]"
-        go
-        e1
-        (ty_to_string ty)
-        ("(" ^ (vs |> List.map ~f:Var.to_string |> String.concat ~sep:", ") ^ ")")
-        go
-        e2
-    | Ap (e1, e2) -> fprintf f "@[<hov 4>%a@ %a@]" go_ty e1 go_ty e2
-    | Abs (x, e) -> fprintf f "@[<4>fun %s ->@ %a@]" (Var.to_string x) go_ty e
-    (* We don't show the let's type since we assume it's correct *)
-    | Let (x, (ty, e1), (_, e2)) ->
-      fprintf
-        f
-        "@[<v>let @[<4>%s@ :@ %s =@ %a@] in@ %a@]"
-        (Var.to_string x)
-        (ty_to_string ty)
-        go
-        e1
-        go
-        e2
-  and go_ty f (ty, exp) =
-    match exp with
-    | Int _ | Bool _ -> go f exp
-    | Var _ | Ap _ | Abs _ | Let _ | Tuple _ | Split _ ->
-      fprintf f "@[<hv>(%a@ : %s)@]" go exp (ty_to_string ty)
-  in
-  go_ty f e
-;;
-
-let format_stmt ~ty_to_string f = function
-  | LetStmt (v, e) ->
-    fprintf f "@[<v>let %s = %a@,end@]" (Var.to_string v) (format_tyexp ~ty_to_string) e
-;;
-
-let format_stmts ~ty_to_string f stmts =
-  fprintf f "@[<v>";
-  List.iter stmts ~f:(fun stmt ->
-      format_stmt ~ty_to_string f stmt;
-      fprintf f "@,");
-  fprintf f "@]"
-;;
-
-let format = format_stmts ~ty_to_string:Ty.to_string

@@ -1,5 +1,5 @@
 type pos = Lexing.position
-type 'a t
+type 'a t [@@deriving sexp]
 
 val start : 'a t -> pos
 val stop : 'a t -> pos
