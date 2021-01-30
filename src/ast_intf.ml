@@ -24,7 +24,7 @@ module S = struct
   and ty =
     | Int
     | Bool
-    | Tuple of mty list
+    | Prod of mty list
     | Arrow of mty * mty
   [@@deriving sexp]
 

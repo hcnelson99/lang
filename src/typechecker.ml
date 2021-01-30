@@ -22,7 +22,11 @@ let check_sym_list_for_dups xs =
          | `Ok -> ())
 ;;
 
-type context = (Hir.Var.t * bound * Ty.t) Symbol.Map.t
+type syminfo =
+  | Var of (Hir.Var.t * bound * Ty.t)
+  | SumCon of Hir.TySym.t
+
+type context = syminfo Symbol.Map.t
 
 let rec infer_mexp (ctx : context) let_depth e =
   let unconstrained () = Ty.unconstrained ~let_depth in
@@ -30,9 +34,13 @@ let rec infer_mexp (ctx : context) let_depth e =
   | Ast.Var x ->
     (match Symbol.Map.find ctx x with
     | None -> raise (Compile_error.Error "var not in ctx")
-    | Some (v, Let_bound var_let_depth, ty) ->
+    | Some (SumCon _) ->
+      failwith
+        "this should return a lambda that actually calls our constructor creation \
+         function"
+    | Some (Var (v, Let_bound var_let_depth, ty)) ->
       Ty.Union_find.instantiate ~var_let_depth ty, Hir.Var v
-    | Some (v, Fun_bound, ty) -> ty, Hir.Var v)
+    | Some (Var (v, Fun_bound, ty)) -> ty, Hir.Var v)
   | Ast.Int i -> Ty.constructor Ty.Constructor.Int [], Hir.Int i
   | Ast.Bool b -> Ty.constructor Ty.Constructor.Bool [], Hir.Bool b
   | Ast.Tuple es ->
@@ -52,7 +60,7 @@ let rec infer_mexp (ctx : context) let_depth e =
         ~init:ctx
         ~f:(fun ctx (x, ty) ->
           let v = Hir.Var.create (Symbol.name x) in
-          Symbol.Map.set ctx ~key:x ~data:(v, Fun_bound, ty), v)
+          Symbol.Map.set ctx ~key:x ~data:(Var (v, Fun_bound, ty)), v)
         syms_and_types
     in
     let ((tau2, _) as h_e2) = infer_mexp ctx' let_depth e2 in
@@ -61,7 +69,7 @@ let rec infer_mexp (ctx : context) let_depth e =
     let tau = unconstrained () in
     let x = Mark.obj x in
     let v = Hir.Var.create (Symbol.name x) in
-    let ctx' = Symbol.Map.set ctx ~key:x ~data:(v, Fun_bound, tau) in
+    let ctx' = Symbol.Map.set ctx ~key:x ~data:(Var (v, Fun_bound, tau)) in
     let ((tau', _) as h_e) = infer_mexp ctx' let_depth e in
     Ty.constructor Ty.Constructor.Arrow [ tau; tau' ], Hir.Abs (v, h_e)
   | Ast.Let (x, e0, e1) ->
@@ -80,7 +88,7 @@ and infer_let ctx let_depth x e =
   (* OPT: mark non-polymorphic let-bound types as fun_bound (since they don't need to be instantiated *)
   let binding_type = if is_syntactic_value e then Let_bound let_depth else Fun_bound in
   let v = Hir.Var.create (Symbol.name x) in
-  let ctx' = Symbol.Map.set ctx ~key:x ~data:(v, binding_type, tau) in
+  let ctx' = Symbol.Map.set ctx ~key:x ~data:(Var (v, binding_type, tau)) in
   ctx', v, h_e
 ;;
 
@@ -90,11 +98,16 @@ let infer_stmt ctx stmt =
   | Ast.LetStmt (x, e) ->
     let ctx', v, h_e = infer_let ctx 0 (Mark.obj x) e in
     ctx', Hir.LetStmt (v, h_e)
+  | Ast.TypeDecl _ -> failwith "not yet implemented"
 ;;
+
+(* | Ast.TypeDecl (x, c) -> *)
+(*   let ctx', v, h_e = infer_let ctx 0 (Mark.obj x) e in *)
+(*   ctx', Hir.LetStmt (v, h_e) *)
 
 let infer_stmts stmts = List.fold_map ~init:Symbol.Map.empty ~f:infer_stmt stmts |> snd
 
 let typecheck stmts =
   let hir = infer_stmts stmts in
-  List.map ~f:(Hir.map_stmt ~f:Ty.to_hir_ty) hir
+  { Hir.tydecls = failwith ""; stmts = List.map ~f:(Hir.map_stmt ~f:Ty.to_hir_ty) hir }
 ;;

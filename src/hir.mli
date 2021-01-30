@@ -26,17 +26,8 @@ module Ty : sig
   val to_string_hum : t -> string
 end
 
-module Var : sig
-  type t [@@deriving compare, hash, sexp]
-
-  include Hashable.S with type t := t
-  include Comparable.S with type t := t
-
-  val create : string -> t
-  val to_string : t -> string
-  val to_string_hum : t -> string
-  val name : t -> string
-end
+module Var : Named_var_intf.S
+module SumCon : Named_var_intf.S
 
 type 'a exp =
   | Var of Var.t
@@ -44,6 +35,7 @@ type 'a exp =
   | Bool of bool
   | Tuple of 'a tyexp list
   | Split of 'a tyexp * Var.t list * 'a tyexp
+  | Inject of SumCon.t * 'a tyexp
   | Ap of 'a tyexp * 'a tyexp
   | Abs of Var.t * 'a tyexp
   | Let of Var.t * 'a tyexp * 'a tyexp
@@ -56,4 +48,12 @@ type 'a stmt = LetStmt of Var.t * 'a tyexp [@@deriving sexp]
 
 val map_stmt : f:('a -> 'b) -> 'a stmt -> 'b stmt
 
-type program = Ty.t stmt list [@@deriving sexp]
+module TySym : Named_var_intf.S
+
+type tydecl = (SumCon.t * Ty.t option) list [@@deriving sexp]
+
+type program =
+  { tydecls : tydecl TySym.Map.t
+  ; stmts : Ty.t stmt list
+  }
+[@@deriving sexp]

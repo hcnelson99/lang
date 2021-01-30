@@ -6,7 +6,4 @@ let x =
     (f true, f 1)
 end
 
-type foo = | foo of int | bar of int
-
-type foo = x of unit
-type foo = x 
+type foo = | foo of int * int -> bool -> int | bar of int

@@ -26,8 +26,8 @@ rule initial = parse
     | "as" { T.As }
     | "type" { T.Type }
     | "of" { T.Of }
-    | "match" { T.Match }
-    | "with" { T.With }
+    (* | "match" { T.Match } *)
+    (* | "with" { T.With } *)
     | "let" { T.Let }
     | "end" { T.End }
     | "true" { T.True }

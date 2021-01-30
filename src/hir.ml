@@ -85,22 +85,8 @@ module Ty = struct
   ;;
 end
 
-module Var = struct
-  module Id = Uid.Make ()
-
-  module T = struct
-    type t = string * Id.t [@@deriving hash, sexp, compare]
-  end
-
-  include T
-  include Hashable.Make (T)
-  include Comparable.Make (T)
-
-  let create n = n, Id.create ()
-  let to_string (n, id) = n ^ "#" ^ Id.to_string id
-  let to_string_hum (n, _) = n
-  let name (n, _) = n
-end
+module Var = Named_var.Make ()
+module SumCon = Named_var.Make ()
 
 type 'a exp =
   | Var of Var.t
@@ -108,6 +94,7 @@ type 'a exp =
   | Bool of bool
   | Tuple of 'a tyexp list
   | Split of 'a tyexp * Var.t list * 'a tyexp
+  | Inject of SumCon.t * 'a tyexp
   | Ap of 'a tyexp * 'a tyexp
   | Abs of Var.t * 'a tyexp
   | Let of Var.t * 'a tyexp * 'a tyexp
@@ -115,7 +102,16 @@ type 'a exp =
 and 'a tyexp = 'a * 'a exp [@@deriving sexp]
 
 type 'a stmt = LetStmt of Var.t * 'a tyexp [@@deriving sexp]
-type program = Ty.t stmt list [@@deriving sexp]
+
+module TySym = Named_var.Make ()
+
+type tydecl = (SumCon.t * Ty.t option) list [@@deriving sexp]
+
+type program =
+  { tydecls : tydecl TySym.Map.t
+  ; stmts : Ty.t stmt list
+  }
+[@@deriving sexp]
 
 let rec map_exp ~f (ty, exp) =
   ( f ty
@@ -125,6 +121,7 @@ let rec map_exp ~f (ty, exp) =
     | Bool b -> Bool b
     | Tuple ts -> Tuple (List.map ~f:(map_exp ~f) ts)
     | Split (e1, vs, e2) -> Split (map_exp ~f e1, vs, map_exp ~f e2)
+    | Inject (c, e) -> Inject (c, map_exp ~f e)
     | Ap (e1, e2) -> Ap (map_exp ~f e1, map_exp ~f e2)
     | Abs (v, e) -> Abs (v, map_exp ~f e)
     | Let (v, e1, e2) -> Let (v, map_exp ~f e1, map_exp ~f e2) )
