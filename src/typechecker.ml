@@ -92,7 +92,6 @@ and infer_let ctx let_depth x e =
   ctx', v, h_e
 ;;
 
-(* Do I want Hir to have stmts? Probably, since I am compiling to C and I care a lot about FFI. *)
 let infer_stmt ctx stmt =
   match Mark.obj stmt with
   | Ast.LetStmt (x, e) ->
@@ -100,10 +99,6 @@ let infer_stmt ctx stmt =
     ctx', Hir.LetStmt (v, h_e)
   | Ast.TypeDecl _ -> failwith "not yet implemented"
 ;;
-
-(* | Ast.TypeDecl (x, c) -> *)
-(*   let ctx', v, h_e = infer_let ctx 0 (Mark.obj x) e in *)
-(*   ctx', Hir.LetStmt (v, h_e) *)
 
 let infer_stmts stmts = List.fold_map ~init:Symbol.Map.empty ~f:infer_stmt stmts |> snd
 

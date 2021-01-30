@@ -49,6 +49,7 @@ let specialize mapping e =
 ;;
 
 let monomorphize program =
+  (* Unnecessary mutability? Probably. *)
   let table = Hir.Var.Table.create () in
   let new_instantiable_var v =
     let insts = Hir.Ty.Table.create () in
