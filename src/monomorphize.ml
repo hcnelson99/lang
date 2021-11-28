@@ -48,7 +48,7 @@ let specialize mapping e =
   Hir.map_exp ~f e
 ;;
 
-let monomorphize program =
+let monomorphize { Hir.tydecls; stmts } =
   (* Unnecessary mutability? Probably. *)
   let table = Hir.Var.Table.create () in
   let new_instantiable_var v =
@@ -96,5 +96,5 @@ let monomorphize program =
         in
         cloned_lets @ ss')
   in
-  monomorphize_stmts program
+  { Hir.tydecls; stmts = monomorphize_stmts stmts }
 ;;

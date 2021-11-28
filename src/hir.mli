@@ -50,10 +50,14 @@ val map_stmt : f:('a -> 'b) -> 'a stmt -> 'b stmt
 
 module TySym : Named_var_intf.S
 
-type tydecl = (SumCon.t * Ty.t option) list [@@deriving sexp]
+type 'a tydecl = (SumCon.t * 'a option) list [@@deriving sexp]
 
-type program =
-  { tydecls : tydecl TySym.Map.t
-  ; stmts : Ty.t stmt list
+val map_tydecl : 'a tydecl -> f:('a -> 'b) -> 'b tydecl
+
+type 'a prog =
+  { tydecls : 'a tydecl TySym.Map.t
+  ; stmts : 'a stmt list
   }
 [@@deriving sexp]
+
+type program = Ty.t prog [@@deriving sexp]

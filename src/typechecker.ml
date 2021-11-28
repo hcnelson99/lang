@@ -47,7 +47,7 @@ let rec infer_mexp (ctx : context) let_depth e =
     let es = List.map ~f:(infer_mexp ctx let_depth) es in
     let ts = List.map ~f:fst es in
     Ty.constructor Ty.Constructor.Tuple ts, Hir.Tuple es
-  | Split (e1, xs, e2) ->
+  | Ast.Split (e1, xs, e2) ->
     check_sym_list_for_dups xs;
     let syms_and_types = List.map xs ~f:(fun x -> Mark.obj x, unconstrained ()) in
     let tuple_ty =
@@ -92,17 +92,53 @@ and infer_let ctx let_depth x e =
   ctx', v, h_e
 ;;
 
-let infer_stmt ctx stmt =
-  match Mark.obj stmt with
-  | Ast.LetStmt (x, e) ->
-    let ctx', v, h_e = infer_let ctx 0 (Mark.obj x) e in
-    ctx', Hir.LetStmt (v, h_e)
-  | Ast.TypeDecl _ -> failwith "not yet implemented"
+(* idk if i like this... starting to get very fragmented with ast, hir, and uf ty *)
+let rec ty_of_ast_ty = function
+  | Ast.Int -> Ty.constructor Ty.Constructor.Int []
+  | Ast.Bool -> Ty.constructor Ty.Constructor.Bool []
+  | Ast.Prod ts ->
+    Ty.constructor
+      Ty.Constructor.Tuple
+      (List.map ~f:(fun mty -> ty_of_ast_ty (Mark.obj mty)) ts)
+  | Ast.Arrow (t1, t2) ->
+    Ty.constructor
+      Ty.Constructor.Arrow
+      (List.map ~f:(fun mty -> ty_of_ast_ty (Mark.obj mty)) [ t1; t2 ])
 ;;
 
-let infer_stmts stmts = List.fold_map ~init:Symbol.Map.empty ~f:infer_stmt stmts |> snd
-
 let typecheck stmts =
-  let hir = infer_stmts stmts in
-  { Hir.tydecls = failwith ""; stmts = List.map ~f:(Hir.map_stmt ~f:Ty.to_hir_ty) hir }
+  let rec go stmts tyctx ctx tydecls hir_acc =
+    match stmts with
+    | [] ->
+      { Hir.tydecls = Hir.TySym.Map.map tydecls ~f:(Hir.map_tydecl ~f:Ty.to_hir_ty)
+      ; stmts = hir_acc |> List.map ~f:(Hir.map_stmt ~f:Ty.to_hir_ty) |> List.rev
+      }
+    | stmt :: stmts ->
+      (match Mark.obj stmt with
+      | Ast.LetStmt (x, e) ->
+        let ctx', v, h_e = infer_let ctx 0 (Mark.obj x) e in
+        go stmts tyctx ctx' tydecls (Hir.LetStmt (v, h_e) :: hir_acc)
+      | Ast.TypeDecl (mtysym, cs) ->
+        let tysym = Mark.obj mtysym in
+        let ty = Hir.TySym.create (Symbol.name tysym) in
+        let tyctx' =
+          match Symbol.Map.add tyctx ~key:tysym ~data:ty with
+          | `Duplicate -> raise (Compile_error.Error "duplicate ty name")
+          | `Ok tyctx' -> tyctx'
+        in
+        let h_cs =
+          List.map
+            ~f:(fun (mc, mtyopt) ->
+              ( Hir.SumCon.create (Symbol.name (Mark.obj mc))
+              , Option.map ~f:(fun mty -> ty_of_ast_ty (Mark.obj mty)) mtyopt ))
+            cs
+        in
+        let tydecls' =
+          match Hir.TySym.Map.add tydecls ~key:ty ~data:h_cs with
+          | `Duplicate -> raise (Compile_error.Error "duplicate tydecl name")
+          | `Ok tydecls' -> tydecls'
+        in
+        go stmts tyctx' ctx tydecls' hir_acc)
+  in
+  go stmts Symbol.Map.empty Symbol.Map.empty Hir.TySym.Map.empty []
 ;;

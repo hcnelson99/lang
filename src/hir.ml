@@ -105,13 +105,17 @@ type 'a stmt = LetStmt of Var.t * 'a tyexp [@@deriving sexp]
 
 module TySym = Named_var.Make ()
 
-type tydecl = (SumCon.t * Ty.t option) list [@@deriving sexp]
+type 'a tydecl = (SumCon.t * 'a option) list [@@deriving sexp]
 
-type program =
-  { tydecls : tydecl TySym.Map.t
-  ; stmts : Ty.t stmt list
+let map_tydecl t ~f = List.map ~f:(fun (s, o) -> s, Option.map ~f o) t
+
+type 'a prog =
+  { tydecls : 'a tydecl TySym.Map.t
+  ; stmts : 'a stmt list
   }
 [@@deriving sexp]
+
+type program = Ty.t prog [@@deriving sexp]
 
 let rec map_exp ~f (ty, exp) =
   ( f ty

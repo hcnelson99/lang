@@ -2,10 +2,11 @@ open Core
 
 let typecheck_test program =
   let lexbuf = Lexing.from_string program in
+  (* TODO: move into try-with *)
   let ast = Parser.program Lexer.initial lexbuf in
   try
-    ast
-    |> Typechecker.typecheck
+    let hir = Typechecker.typecheck ast in
+    hir.stmts
     |> List.iter ~f:(fun stmt ->
            match stmt with
            | LetStmt (v, (ty, _)) ->
